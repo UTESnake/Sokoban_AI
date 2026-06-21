@@ -1,0 +1,17 @@
+# Repo root ignore
+*.zip
+*.rar
+*.7z
+*.jpg
+*.jpeg
+*.png
+*.gif
+node_modules/
+.vscode/
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.venv*/
+.env
