@@ -1,12 +1,5 @@
-from objects.box import Box
-from objects.box_docked import BoxDocked
-from objects.dock import Dock
-from objects.floor import Floor
-from objects.competitor import Competitor
-from objects.mystery import Mystery
-from objects.wall import Wall
-from objects.worker import Worker
 import copy
+import assets as _assets
 
 class Game:
     def __init__(self, matrix, stack_matrix):
@@ -21,24 +14,29 @@ class Game:
                 x = len(row)
         return x * 64, y * 64
 
+    _sprite_for_char = {
+        '#': "wall",
+        '@': "worker",
+        '.': "dock",
+        '$': "box",
+        '*': "box_docked",
+        'E': "competitor",
+        '?': "blind_box",
+    }
+
+    @classmethod
+    def _blit_tile(cls, screen, sprite_name, x, y):
+        surf = _assets.sprites.get(sprite_name)
+        if surf is not None:
+            screen.blit(surf, (x, y))
+
     def print_game(self, screen):
         x, y = 0, 0
-
-        object_map = {
-            '#': Wall,
-            '@': Worker,
-            '.': Dock,
-            '$': Box,
-            '*': BoxDocked,
-            'E': Competitor,
-            '?': Mystery,
-        }
-
         for row in self.matrix:
             for char in row:
-                if char in object_map:
-                    obj = object_map[char](x, y)
-                    screen.blit(obj.image, obj.rect)
+                sprite_name = self._sprite_for_char.get(char)
+                if sprite_name is not None:
+                    self._blit_tile(screen, sprite_name, x, y)
                 x += 64
             x = 0
             y += 64
@@ -46,11 +44,12 @@ class Game:
     @staticmethod
     def fill_screen_with_floor(size, screen):
         screen_width, screen_height = size
-
+        floor_surf = _assets.sprites.get("floor")
+        if floor_surf is None:
+            return
         for x in range(0, screen_width, 64):
             for y in range(0, screen_height, 64):
-                floor = Floor(x, y)
-                screen.blit(floor.image, floor.rect)
+                screen.blit(floor_surf, (x, y))
 
     def is_completed(self, dock):
         for i, j in dock:
@@ -73,10 +72,10 @@ class Game:
         return dockList
 
     def canMove(self, x, y):
-        return self.matrix[x][y] not in ["#", "$", "*", "E", "?"]
+        return self.matrix[x][y] not in ["#", "$", "*", "E"]
 
     def canPushBox(self, x, y):
-        return self.matrix[x][y] not in ["#", "$", "*", "E", "?"]
+        return self.matrix[x][y] not in ["#", "$", "*", "E"]
 
     def update_position(self, old_x, old_y, new_x, new_y, symbol):
         self.matrix[old_x][old_y] = " "
@@ -94,7 +93,7 @@ class Game:
 
         if self.canPushBox(new_box_x, new_box_y):
             self.update_position(cur_x, cur_y, cur_box_x, cur_box_y, "@")
-            if self.matrix[new_box_x][new_box_y] == " ":
+            if self.matrix[new_box_x][new_box_y] in [" ", "?"]:
                 self.matrix[new_box_x][new_box_y] = "$"
             elif self.matrix[new_box_x][new_box_y] == ".":
                 self.matrix[new_box_x][new_box_y] = "*"

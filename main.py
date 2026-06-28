@@ -12,16 +12,278 @@ from game import Game
 from solver import Solve
 from algorithm.algo_adversarial import alpha_beta, expectimax, minimax
 from algorithm.algo_complex import (
+    ac3_search,
+    and_or_search,
     backtracking_search,
-    global_search,
-    min_conflict,
-    no_observation_search,
-    partial_observation_search,
-    path_finding,
+    min_conflict_search,
+    partially_observable_search,
+    search_with_no_observation,
 )
 from algorithm.algo_infor import astar_search, greedy_search, ida_star_search
 from algorithm.algo_local import beam_search, simple_hill_climbing, simulated_annealing_search
 from algorithm.algo_uninfor import bfs_search, dfs_search, ids_search
+
+
+
+def _center_window(window, width, height):
+    window.update_idletasks()
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    x = int((screen_width - width) / 2)
+    y = int((screen_height - height) / 2)
+
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+
+def _create_round_rect(canvas, x1, y1, x2, y2, radius=20, **kwargs):
+    points = [
+        x1 + radius, y1,
+        x2 - radius, y1,
+        x2, y1,
+        x2, y1 + radius,
+        x2, y2 - radius,
+        x2, y2,
+        x2 - radius, y2,
+        x1 + radius, y2,
+        x1, y2,
+        x1, y2 - radius,
+        x1, y1 + radius,
+        x1, y1,
+    ]
+
+    return canvas.create_polygon(points, smooth=True, **kwargs)
+
+
+def show_failure_dialog(
+    fail_step=0,
+    reason="Thuật toán không tìm được lời giải.",
+    algorithm_name="Thuật toán",
+    on_retry=None,
+):
+    """
+    Hộp thoại báo thất bại đẹp giống màn hình Victory.
+    Dùng khi thuật toán trả NoSol hoặc thất bại ở một bước cụ thể.
+    """
+
+    result = {"action": "close"}
+
+    root = tk.Tk()
+    root.withdraw()
+
+    dialog = tk.Toplevel(root)
+    dialog.title("Thất bại")
+    dialog.resizable(False, False)
+    dialog.configure(bg="#27215c")
+
+    width = 560
+    height = 430
+    _center_window(dialog, width, height)
+
+    dialog.grab_set()
+
+    canvas = tk.Canvas(
+        dialog,
+        width=width,
+        height=height,
+        bg="#27215c",
+        highlightthickness=0,
+    )
+    canvas.pack(fill="both", expand=True)
+
+    # Khung ngoài
+    _create_round_rect(
+        canvas,
+        20,
+        20,
+        width - 20,
+        height - 20,
+        radius=18,
+        fill="#6f63ff",
+        outline="#6f63ff",
+    )
+
+    # Khung trong
+    _create_round_rect(
+        canvas,
+        27,
+        27,
+        width - 27,
+        height - 27,
+        radius=16,
+        fill="#f8fbff",
+        outline="#d9e3ff",
+    )
+
+    # Confetti / chấm trang trí
+    decorations = [
+        (70, 75, "#ffcf4a"),
+        (120, 55, "#61d2a4"),
+        (455, 62, "#ff775c"),
+        (505, 105, "#54bce8"),
+        (75, 310, "#a653e8"),
+        (490, 308, "#ffcf4a"),
+    ]
+
+    for x, y, color in decorations:
+        canvas.create_oval(x - 7, y - 7, x + 7, y + 7, fill=color, outline=color)
+
+    # Icon thất bại
+    canvas.create_oval(245, 70, 315, 140, fill="#fff3f0", outline="#ff8a75", width=3)
+    canvas.create_text(
+        280,
+        106,
+        text="!",
+        font=("Arial", 42, "bold"),
+        fill="#ff5a45",
+    )
+
+    # Tiêu đề
+    canvas.create_text(
+        width / 2,
+        175,
+        text="THẤT BẠI!",
+        font=("Arial", 30, "bold"),
+        fill="#ff5a45",
+    )
+
+    # Nội dung chính
+    canvas.create_text(
+        width / 2,
+        220,
+        text="Thuật toán chưa tìm được lời giải.",
+        font=("Arial", 16, "bold"),
+        fill="#333333",
+    )
+
+    if fail_step is None:
+        fail_step = 0
+
+    canvas.create_text(
+        width / 2,
+        250,
+        text=f"{algorithm_name} đã dừng ở bước {fail_step}.",
+        font=("Arial", 13),
+        fill="#5c5c8a",
+    )
+
+    # Lý do thất bại
+    max_reason_length = 70
+    if len(reason) > max_reason_length:
+        reason_display = reason[:max_reason_length] + "..."
+    else:
+        reason_display = reason
+
+    canvas.create_text(
+        width / 2,
+        280,
+        text=f"Lý do: {reason_display}",
+        font=("Arial", 12, "italic"),
+        fill="#5c5c8a",
+    )
+
+    canvas.create_text(
+        width / 2,
+        318,
+        text=f"{algorithm_name} • Fail@{fail_step}",
+        font=("Arial", 14, "bold"),
+        fill="#c0392b",
+    )
+
+    def retry_action():
+        result["action"] = "retry"
+        dialog.destroy()
+        root.destroy()
+
+        if on_retry is not None:
+            on_retry()
+
+    def close_action():
+        result["action"] = "close"
+        dialog.destroy()
+        root.destroy()
+
+    # Nút Chơi lại
+    retry_button = tk.Button(
+        dialog,
+        text="↻  Chơi lại",
+        font=("Arial", 12, "bold"),
+        bg="#ffd85a",
+        fg="#6b5a00",
+        activebackground="#ffcb2f",
+        activeforeground="#4d4100",
+        relief="flat",
+        width=14,
+        height=2,
+        command=retry_action,
+        cursor="hand2",
+    )
+
+    # Nút Đóng
+    close_button = tk.Button(
+        dialog,
+        text="✓  Đóng",
+        font=("Arial", 12, "bold"),
+        bg="#63d2a6",
+        fg="#145943",
+        activebackground="#4fc795",
+        activeforeground="#0d3d2e",
+        relief="flat",
+        width=14,
+        height=2,
+        command=close_action,
+        cursor="hand2",
+    )
+
+    canvas.create_window(210, 365, window=retry_button)
+    canvas.create_window(350, 365, window=close_button)
+
+    dialog.protocol("WM_DELETE_WINDOW", close_action)
+
+    dialog.wait_window()
+    return result["action"]
+
+
+def normalize_failure_result(solution, algorithm_name="Thuật toán"):
+    """
+    Chuẩn hóa kết quả thuật toán.
+    Dùng để main.py biết khi nào cần hiện giao diện thất bại.
+
+    Hỗ trợ:
+    - "NoSol"
+    - dict dạng {"status": "failure", "fail_step": ..., "reason": ...}
+    - chuỗi lời giải bình thường như "UDLR..."
+    """
+
+    if isinstance(solution, dict):
+        status = solution.get("status")
+
+        if status == "failure":
+            return {
+                "failed": True,
+                "algorithm_name": solution.get("algorithm_name", algorithm_name),
+                "fail_step": solution.get("fail_step", 0),
+                "reason": solution.get("reason", "Thuật toán không tìm được lời giải."),
+            }
+
+        if status == "success":
+            return {
+                "failed": False,
+                "path": solution.get("path", ""),
+            }
+
+    if solution == "NoSol" or solution is None:
+        return {
+            "failed": True,
+            "algorithm_name": algorithm_name,
+            "fail_step": 0,
+            "reason": "Thuật toán đã chạy nhưng không tìm được đường đi tới đích.",
+        }
+
+    return {
+        "failed": False,
+        "path": solution,
+    }
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -65,12 +327,12 @@ ALGO_GROUPS = [
         ("SimAnneal",  "Annealing",    "∿", "#54AED3"),
     ]),
     ("Tìm kiếm trong môi trường phức tạp", [
-        ("BidirBFS",   "No Obs.",      "◌", "#9582CF"),
-        ("Dijkstra",   "Partial",      "◐", "#58B7DC"),
-        ("Backtrack",  "Backtrack",    "↵", "#DD4F7D"),
-        ("RBFS",       "Path",         "⇢", "#5BC89F"),
-        ("GBFS",       "Global",       "⊙", "#FFD64F"),
-        ("IDDFS",      "Min Conflict", "▦", "#B563D9"),
+        ("AndOr",       "AND-OR",         "◇", "#9582CF"),
+        ("NoObs",       "No Observation", "◌", "#58B7DC"),
+        ("PartialObs",  "Partial Obs.",   "◐", "#5BC89F"),
+        ("Backtrack",   "Backtracking",   "↵", "#DD4F7D"),
+        ("MinConflict", "Min-Conflict",   "▦", "#FFD64F"),
+        ("AC3",         "AC-3",           "≋", "#B563D9"),
     ]),
     ("Tìm kiếm đối kháng", [
         ("UCS",        "Minimax",      "♜", "#9582CF"),
@@ -87,6 +349,13 @@ LEVELS = [
     ("Level 5 - Adversarial", "level5_adversarial.txt"),
 ]
 LEVEL_FILES = dict(LEVELS)
+OBSERVATION_ALGOS = {"NoObs", "PartialObs"}
+LEVEL_OBSERVATION_UNKNOWN_CELLS = {
+    "Level 4 - Complex": (
+        (2, 5), (3, 5),
+        (5, 4), (5, 5), (5, 6), (6, 4),
+    ),
+}
 
 LEVEL_PROFILES = {
     "Level 1 - Uninformed": {
@@ -109,9 +378,11 @@ LEVEL_PROFILES = {
     },
     "Level 4 - Complex": {
         "title": "Môi trường phức tạp",
-        "description": "Ô bí ẩn ? che khuất một lối đi; thuật toán phải chọn chiến lược vòng tránh.",
+        "description": "So sánh tìm kiếm bất định, quan sát hạn chế và các kỹ thuật thỏa mãn ràng buộc.",
         "accent": "#9582CF",
-        "algorithms": ("BidirBFS", "Dijkstra", "Backtrack", "RBFS", "GBFS", "IDDFS"),
+        "algorithms": (
+            "AndOr", "NoObs", "PartialObs",
+            "Backtrack", "MinConflict", "AC3"),
     },
     "Level 5 - Adversarial": {
         "title": "Tìm kiếm đối kháng",
@@ -151,12 +422,12 @@ ALGORITHM_HANDLERS = {
     "HillClimb": simple_hill_climbing,
     "BeamSearch": beam_search,
     "SimAnneal": simulated_annealing_search,
-    "BidirBFS": no_observation_search,
-    "Dijkstra": partial_observation_search,
+    "AndOr": and_or_search,
+    "NoObs": search_with_no_observation,
+    "PartialObs": partially_observable_search,
     "Backtrack": backtracking_search,
-    "RBFS": path_finding,
-    "GBFS": global_search,
-    "IDDFS": min_conflict,
+    "MinConflict": min_conflict_search,
+    "AC3": ac3_search,
     "UCS": minimax,
     "BFS2": alpha_beta,
     "DFS2": expectimax,
@@ -346,6 +617,8 @@ class SokobanApp:
         self.competitor_previous_position = None
         self.competitor_under_tile = " "
         self.competitor_turn_requirements = []
+        self.observation_fog_enabled = False
+        self.observation_revealed = set()
 
         # col0=left(fixed), col1=game(expands), col2=log(fixed)
         # row0=main(expands), row1=bottom(fixed)
@@ -365,6 +638,7 @@ class SokobanApp:
         self._build_right_panel()
         self._build_bottom_panel()
         self._bind_keyboard_controls()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(150, self.init_game)
 
     # ─────────────────────────────────────────
@@ -484,7 +758,7 @@ class SokobanApp:
         target_level = ALGO_TO_LEVEL.get(key)
         if target_level and self.combobox.get() != target_level:
             self.combobox.set(target_level)
-            self.init_game()
+        self.init_game()
         self._refresh_level_profile()
         self._draw_trail_legend()
         self.root.after(20, self.run_solution)
@@ -525,9 +799,6 @@ class SokobanApp:
         self._refresh_level_profile()
         self.init_game()
 
-    # ─────────────────────────────────────────
-    #  GAME FRAME — co giãn theo cửa sổ
-    # ─────────────────────────────────────────
     def _build_game_frame(self):
         outer = tk.Frame(self.root, bg="#1a1a2e",
                          width=GAME_W + 4, height=GAME_H + 4,
@@ -706,7 +977,8 @@ class SokobanApp:
             if result is None:
                 metric = "Chưa chạy"
             elif result["status"] != "ok":
-                metric = "NoSol"
+                failed_step = result.get("failed_step")
+                metric = f"Fail@{failed_step}" if failed_step is not None else "Thất bại"
                 canvas.create_text(
                     metric_x, y + 7, text=metric, anchor="e",
                     font=("Segoe UI", 7, "bold"), fill="#D04F70")
@@ -720,7 +992,11 @@ class SokobanApp:
                 canvas.create_rectangle(
                     bar_x, y + 9, bar_x + time_width, y + 14,
                     fill="#9D8BD7", outline="")
-                metric = f'{result["steps"]}b · {result["elapsed_ms"]:.1f}ms'
+                metric_label = result.get("metric_label")
+                if metric_label:
+                    metric = f'{metric_label} · {result["elapsed_ms"]:.1f}ms'
+                else:
+                    metric = f'{result["steps"]}b · {result["elapsed_ms"]:.1f}ms'
 
             canvas.create_text(
                 metric_x, y + 7, text=metric, anchor="e",
@@ -767,6 +1043,20 @@ class SokobanApp:
         with open(path, "r") as fh:
             return [[c for c in line.rstrip('\n')] for line in fh]
 
+    def _map_for_algorithm(self, matrix, algo, level):
+        result = copy.deepcopy(matrix)
+        if algo != "PartialObs":
+            return result
+
+        for row, col in LEVEL_OBSERVATION_UNKNOWN_CELLS.get(level, ()):
+            if 0 <= row < len(result) and 0 <= col < len(result[row]):
+                if result[row][col] == " ":
+                    result[row][col] = "?"
+        return result
+
+    def _display_map_for_algorithm(self, matrix, _algo, _level):
+        return copy.deepcopy(matrix)
+
     def init_game(self):
         self._cancel_solution_animation()
         self._set_pause_state(False)
@@ -776,28 +1066,24 @@ class SokobanApp:
 
         level = self.combobox.get()
         try:
-            matrix = self.load_map(level)
+            matrix = self._display_map_for_algorithm(
+                self.load_map(level), self.selected_algo.get(), level)
         except FileNotFoundError:
             messagebox.showerror("Error", f"Không tìm thấy file map cho {level}")
             return
 
-        # Initialize pygame and then load sprites. Loading images before
-        # pygame.init() can cause failures on some platforms.
         if not self.game_initialized:
-            self.root.update_idletasks()   # đảm bảo frame đã render trước khi lấy ID
+            self.root.update_idletasks()
             os.environ['SDL_WINDOWID'] = str(self.game_frame.winfo_id())
-            if os.name == 'nt':
-                os.environ['SDL_VIDEODRIVER'] = 'windib'
             pygame.init()
-        assets.load_sprites()
 
         self.gameSokoban = Game(matrix, [])
         self.dockList = self.gameSokoban.listDock()
         self.manual_steps = 0
         self.win_notified = False
         self._reset_trail()
+        self._reset_observation_fog()
 
-        # Lấy kích thước frame thực sau khi layout xong
         self.root.update_idletasks()
         fw = self.game_frame.winfo_width()
         fh = self.game_frame.winfo_height()
@@ -805,6 +1091,8 @@ class SokobanApp:
         gh = fh if fh > 10 else GAME_H
         self.screen = pygame.display.set_mode((gw, gh))
         self._gw, self._gh = gw, gh
+
+        assets.load_sprites()
 
         # Tính kích thước map thực (số cột × tile_w, số hàng × tile_h)
         # Lấy tile size từ assets (sprite đầu tiên), fallback 64
@@ -835,6 +1123,7 @@ class SokobanApp:
         self.manual_steps = 0
         self.win_notified = False
         self._reset_trail()
+        self._reset_observation_fog()
 
         map_cols = max(len(row) for row in matrix)
         map_rows = len(matrix)
@@ -849,8 +1138,15 @@ class SokobanApp:
         if not self.game_initialized:
             return
 
-        # Fill nền toàn screen bằng màu sàn (tránh viền đen xung quanh map)
-        self.gameSokoban.fill_screen_with_floor((self._gw, self._gh), self.screen)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+        # No Observation chỉ nhìn thấy vùng đã khám phá.
+        if self.observation_fog_enabled:
+            self.screen.fill("#080D18")
+        else:
+            self.gameSokoban.fill_screen_with_floor((self._gw, self._gh), self.screen)
 
         # Render map vào surface tạm đúng kích thước map
         map_w = self._map_surf.get_width()
@@ -858,12 +1154,19 @@ class SokobanApp:
         self.gameSokoban.fill_screen_with_floor((map_w, map_h), self._map_surf)
         self.gameSokoban.print_game(self._map_surf)
         self._draw_solution_trail(self._map_surf)
+        self._draw_observation_fog(self._map_surf)
 
         # Blit map_surf vào giữa screen theo offset đã tính
         self.screen.blit(self._map_surf, (self._offset_x, self._offset_y))
 
         pygame.display.flip()
         self.loop_job = self.root.after(100, self._game_loop)
+
+    def _on_close(self):
+        if self.loop_job is not None:
+            self.root.after_cancel(self.loop_job)
+        pygame.quit()
+        self.root.destroy()
 
     def stop_game(self):
         if not self.current_solution or self.solution_index >= len(self.current_solution):
@@ -910,8 +1213,10 @@ class SokobanApp:
         if self.gameSokoban.matrix != before:
             self.manual_steps += 1
             self._record_trail_point()
+            self._reveal_current_observation()
             self.solution_var.set(f"Manual steps: {self.manual_steps}")
             if self.gameSokoban.is_completed(self.dockList):
+                self.observation_fog_enabled = False
                 self._show_win_message(self.manual_steps, "manual")
 
         return "break"
@@ -946,7 +1251,10 @@ class SokobanApp:
 
         level = self.combobox.get()
         try:
-            matrix = self.load_map(level)
+            base_matrix = self.load_map(level)
+            solver_matrix = self._map_for_algorithm(base_matrix, algo, level)
+            display_matrix = self._display_map_for_algorithm(
+                base_matrix, algo, level)
         except FileNotFoundError:
             messagebox.showerror("Error", f"Không tìm thấy file map cho {level}")
             return
@@ -959,7 +1267,7 @@ class SokobanApp:
 
         started_at = time.perf_counter()
         try:
-            result = handler(Solve(copy.deepcopy(matrix)))
+            result = handler(Solve(copy.deepcopy(solver_matrix)))
         except Exception as exc:
             elapsed_ms = (time.perf_counter() - started_at) * 1000
             self._save_comparison_result(level, algo, "error", 0, elapsed_ms)
@@ -971,22 +1279,252 @@ class SokobanApp:
             self.root.configure(cursor="")
 
         elapsed_ms = (time.perf_counter() - started_at) * 1000
-        if not result or result == "NoSol":
-            self._save_comparison_result(level, algo, "nosol", 0, elapsed_ms)
-            self.solution_var.set("No solution found.")
-            self._log(f"{algo}: no solution ({elapsed_ms:.1f} ms).")
-        else:
-            self._save_comparison_result(level, algo, "ok", len(result), elapsed_ms)
-            self.solution_var.set(result)
-            self._log(f"{algo}: found {len(result)} steps in {elapsed_ms:.1f} ms.")
-            self._start_solution_animation(result, matrix)
 
-    def _save_comparison_result(self, level, algo, status, steps, elapsed_ms):
-        self.comparison_results.setdefault(level, {})[algo] = {
+        if isinstance(result, dict) and result.get("status") == "success":
+            path = result.get("path", "")
+            plan_text = result.get("plan_text", path)
+            plan_kind = result.get("plan_kind", "path")
+            real_steps = result.get("real_steps", len(path))
+            display_steps = result.get("display_steps", real_steps)
+            metric_label = result.get("metric_label", f"{real_steps}b")
+
+            self._save_comparison_result(
+                level,
+                algo,
+                "ok",
+                display_steps,
+                elapsed_ms,
+                metric_label=metric_label,
+                real_steps=real_steps,
+            )
+            self.solution_var.set(plan_text)
+            self._log(
+                f"{algo}: returned {plan_kind}; replay branch={real_steps} steps; "
+                f"metric={metric_label}; time={elapsed_ms:.1f} ms."
+            )
+            note = result.get("note")
+            if note:
+                self._log(note)
+            self._start_solution_animation(path, display_matrix)
+            return
+
+        if isinstance(result, dict) and result.get("status") == "failure":
+            failed_path = result.get("path", "")
+            path_steps = result.get(
+                "path_steps",
+                len(failed_path) if isinstance(failed_path, str) else 0
+            )
+            failed_step = result.get(
+                "failed_step",
+                result.get("fail_step", path_steps)
+            )
+            reason = result.get(
+                "reason",
+                "Thuật toán đã chạy hết nhưng không tìm thấy lời giải."
+            )
+            node_generated = result.get("node_generated", 0)
+            hide_failed_path = result.get("hide_failed_path", False)
+            suppress_failure_popup = result.get("suppress_failure_popup", False)
+
+            self._handle_algorithm_failure(
+                level=level,
+                algo=algo,
+                elapsed_ms=elapsed_ms,
+                failed_step=failed_step,
+                reason=reason,
+                node_generated=node_generated,
+                failed_path=failed_path,
+                path_steps=path_steps,
+                hide_failed_path=hide_failed_path,
+                suppress_failure_popup=suppress_failure_popup,
+            )
+            return
+
+        if not result or result == "NoSol":
+            self._handle_algorithm_failure(
+                level=level,
+                algo=algo,
+                elapsed_ms=elapsed_ms,
+                failed_step=0,
+                reason="Thuật toán đã chạy hết nhưng không tìm thấy lời giải.",
+                node_generated=0,
+                failed_path="",
+            )
+            return
+
+        self._save_comparison_result(level, algo, "ok", len(result), elapsed_ms)
+        self.solution_var.set(result)
+        self._log(f"{algo}: found {len(result)} steps in {elapsed_ms:.1f} ms.")
+        self._start_solution_animation(result, display_matrix)
+
+    def _handle_algorithm_failure(
+            self, level, algo, elapsed_ms, failed_step, reason,
+            node_generated=0, failed_path="", path_steps=None,
+            hide_failed_path=False, suppress_failure_popup=False):
+        """
+        Xử lý kết quả thất bại của thuật toán:
+        - Lưu vào biểu đồ so sánh.
+        - Ghi log chi tiết.
+        - Cập nhật ô SOLUTION.
+        - Hiện popup thất bại đẹp giống popup Victory.
+        """
+        label = ALGO_VISUALS.get(algo, {}).get("label", algo)
+        failed_step = failed_step if failed_step is not None else 0
+        reason = reason or "Thuật toán đã chạy hết nhưng không tìm thấy lời giải."
+        if path_steps is None:
+            path_steps = len(failed_path) if isinstance(failed_path, str) else 0
+
+        self._save_comparison_result(
+            level, algo, "nosol", 0, elapsed_ms,
+            failed_step=failed_step, reason=reason)
+
+        message = f"Thất bại ở bước {failed_step}: {reason}"
+        if hide_failed_path:
+            self.solution_var.set(f"Kẹt ở bước {failed_step}")
+        elif failed_path:
+            self.solution_var.set(f"{failed_path}  (kẹt tại bước {path_steps})")
+        else:
+            self.solution_var.set(message)
+        self._log(
+            f"{algo}: {message} ({elapsed_ms:.1f} ms, {node_generated} nodes).")
+        if failed_path and not hide_failed_path:
+            self._log(
+                f"SOLUTION trước khi kẹt: {failed_path} ({path_steps} bước)")
+        elif failed_path:
+            self._log(f"Kẹt ở bước {failed_step}; ẩn path vì quá dài.")
+
+        if suppress_failure_popup:
+            self._log("Kết luận được ghi trong SOLUTION; không mở popup vì đây là kết quả dự kiến của bài toán.")
+            return
+
+        self._show_failure_dialog(
+            algorithm_label=label,
+            fail_step=failed_step,
+            reason=reason,
+            node_generated=node_generated,
+            elapsed_ms=elapsed_ms,
+            failed_path=failed_path,
+        )
+
+    def _show_failure_dialog(
+            self, algorithm_label, fail_step, reason,
+            node_generated=0, elapsed_ms=0.0, failed_path=""):
+        """
+        Popup thất bại có giao diện đồng bộ với popup Victory.
+        Không dùng messagebox thô nữa.
+        """
+        if hasattr(self, "failure_popup"):
+            try:
+                if self.failure_popup is not None and self.failure_popup.winfo_exists():
+                    self.failure_popup.lift()
+                    return
+            except Exception:
+                pass
+
+        popup = tk.Toplevel(self.root)
+        self.failure_popup = popup
+        popup.title("Thất bại")
+        popup.configure(bg="#1E2142")
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        popup.grab_set()
+
+        w, h = 470, 350
+        popup.update_idletasks()
+        root_x = self.root.winfo_rootx()
+        root_y = self.root.winfo_rooty()
+        root_w = max(self.root.winfo_width(), w)
+        root_h = max(self.root.winfo_height(), h)
+        x = root_x + (root_w - w) // 2
+        y = root_y + (root_h - h) // 2
+        popup.geometry(f"{w}x{h}+{x}+{y}")
+
+        canvas = tk.Canvas(popup, width=w, height=h, bg="#1E2142", highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+
+        # Khung chính giống popup Victory
+        self._canvas_round_rect(canvas, 18, 18, w - 18, h - 18, 20,
+                                fill="#FFFFFF", outline="#E26087", width=3)
+        self._canvas_round_rect(canvas, 34, 34, w - 34, h - 34, 16,
+                                fill="#F8FBFF", outline="#DDE3F0", width=1)
+
+        # Chấm trang trí
+        confetti = [
+            (56, 60, "#FFD64F"), (92, 42, "#6FCFA9"), (378, 48, "#F07351"),
+            (412, 76, "#58B7DC"), (64, 254, "#B563D9"), (402, 252, "#FFD64F"),
+            (112, 292, "#F07351"), (354, 292, "#6FCFA9"),
+        ]
+        for cx, cy, color in confetti:
+            canvas.create_oval(cx - 5, cy - 5, cx + 5, cy + 5,
+                               fill=color, outline="")
+
+        # Icon cảnh báo
+        canvas.create_oval(w // 2 - 34, 54, w // 2 + 34, 122,
+                           fill="#FFF1F2", outline="#E26087", width=3)
+        canvas.create_text(w // 2, 88, text="!", font=("Segoe UI", 34, "bold"),
+                           fill="#E26087")
+
+        canvas.create_text(w // 2, 145, text="THẤT BẠI!",
+                           font=("Segoe UI", 24, "bold"), fill="#E26087")
+        canvas.create_text(w // 2, 178, text="Thuật toán chưa tìm được lời giải",
+                           font=("Segoe UI", 12, "bold"), fill=TEXT_DARK)
+
+        canvas.create_text(
+            w // 2, 207,
+            text=f"{algorithm_label} đã dừng ở bước {fail_step}.",
+            font=("Segoe UI", 10, "bold"), fill="#56617D", width=370)
+
+        reason_text = reason or "Không tìm thấy lời giải."
+        canvas.create_text(
+            w // 2, 238,
+            text=f"Lý do: {reason_text}",
+            font=("Segoe UI", 9), fill="#56617D", width=380)
+
+        detail_parts = []
+        if node_generated:
+            detail_parts.append(f"{node_generated} node")
+        detail_parts.append(f"{elapsed_ms:.1f} ms")
+        detail = " • ".join(detail_parts)
+
+        canvas.create_text(
+            w // 2, 270,
+            text=f"{algorithm_label} • Fail@{fail_step} • {detail}",
+            font=("Segoe UI", 10, "bold"), fill="#B42318", width=390)
+
+        buttons = tk.Frame(canvas, bg="#F8FBFF")
+        RoundedButton(buttons, text="Chơi lại", icon="⟲", bg="#FFD64F",
+                      fg=BTN_TEXT, width=126, height=38,
+                      command=lambda: self._restart_from_failure(popup)
+                      ).pack(side="left", padx=6)
+        RoundedButton(buttons, text="Đóng", icon="✓", bg="#6FCFA9",
+                      fg=BTN_TEXT, width=126, height=38,
+                      command=popup.destroy
+                      ).pack(side="left", padx=6)
+        canvas.create_window(w // 2, 312, window=buttons)
+
+    def _restart_from_failure(self, popup):
+        if popup.winfo_exists():
+            popup.destroy()
+        self.reset_game()
+
+    def _save_comparison_result(
+            self, level, algo, status, steps, elapsed_ms,
+            failed_step=None, reason=None,
+            metric_label=None, real_steps=None):
+        item = {
             "status": status,
             "steps": steps,
             "elapsed_ms": elapsed_ms,
         }
+        if metric_label is not None:
+            item["metric_label"] = metric_label
+        if real_steps is not None:
+            item["real_steps"] = real_steps
+        if failed_step is not None:
+            item["failed_step"] = failed_step
+        if reason:
+            item["reason"] = reason
+        self.comparison_results.setdefault(level, {})[algo] = item
         self._draw_comparison_chart()
 
     def _log(self, msg):
@@ -1108,6 +1646,7 @@ class SokobanApp:
         if self.solution_index >= len(self.current_solution):
             self.solution_job = None
             self._set_pause_state(False)
+            self.observation_fog_enabled = False
             self._log("Animation finished.")
             if self.gameSokoban.is_completed(self.dockList):
                 self._show_win_message(len(self.current_solution), "algorithm")
@@ -1124,6 +1663,7 @@ class SokobanApp:
             y, x = moves[step]
             self.gameSokoban.move(y, x, self.dockList)
             self._record_trail_point()
+            self._reveal_current_observation()
 
         self.solution_index += 1
         self._move_competitor()
@@ -1131,6 +1671,112 @@ class SokobanApp:
             f"{self.current_solution}  ({self.solution_index}/{len(self.current_solution)})"
         )
         self.solution_job = self.root.after(ANIMATION_STEP_DELAY, self._play_next_solution_step)
+
+    def _reset_observation_fog(self):
+        algo = self.selected_algo.get()
+        self.observation_fog_enabled = algo in ("NoObs", "PartialObs")
+        self.observation_revealed = set()
+        self._partialobs_permanent = set()
+        if algo == "NoObs":
+            self._reveal_current_observation()
+            self._log("No Observation: thấy layout và đích, ẩn trạng thái ban đầu.")
+        elif algo == "PartialObs":
+            self._init_partialobs()
+            self._reveal_current_observation()
+            self._log("Partial Observation: một phần map sáng sẵn, agent quan sát cục bộ quanh worker.")
+
+    def _init_partialobs(self):
+        matrix = self.gameSokoban.matrix
+        all_open = []
+        for r, row_cells in enumerate(matrix):
+            for c, ch in enumerate(row_cells):
+                if ch in (" ", ".", "@", "$", "*"):
+                    all_open.append((r, c))
+        half = max(1, len(all_open) // 2)
+        self._partialobs_permanent = set(all_open[:half])
+
+    def _observation_cells_around(self, worker, radius=1):
+        matrix = self.gameSokoban.matrix
+        wr, wc = worker
+        observed = set()
+        for dr in range(-radius, radius + 1):
+            for dc in range(-radius, radius + 1):
+                row, col = wr + dr, wc + dc
+                if 0 <= row < len(matrix) and 0 <= col < len(matrix[row]):
+                    observed.add((row, col))
+        return observed
+
+    def _reveal_unknown_floor_cells(self, cells):
+        matrix = self.gameSokoban.matrix
+        for row, col in cells:
+            if 0 <= row < len(matrix) and 0 <= col < len(matrix[row]):
+                if matrix[row][col] == "?":
+                    matrix[row][col] = " "
+
+    def _unknown_cells(self):
+        matrix = self.gameSokoban.matrix
+        return {
+            (row, col)
+            for row, cells in enumerate(matrix)
+            for col, value in enumerate(cells)
+            if value == "?"
+        }
+
+    def _all_map_cells(self):
+        matrix = self.gameSokoban.matrix
+        return {
+            (row, col)
+            for row, cells in enumerate(matrix)
+            for col, _value in enumerate(cells)
+        }
+
+    def _reveal_current_observation(self):
+        if not self.observation_fog_enabled or not hasattr(self, "gameSokoban"):
+            return
+        worker = self.gameSokoban.getPosition()
+        if worker is None:
+            return
+
+        algo = self.selected_algo.get()
+        if algo == "NoObs":
+            self.observation_revealed = self._all_map_cells()
+        elif algo == "PartialObs":
+            local_view = self._observation_cells_around(worker, radius=1)
+            self._reveal_unknown_floor_cells(local_view)
+            self.observation_revealed = (
+                self._partialobs_permanent | set(self.dockList) | local_view)
+
+    def _draw_observation_fog(self, surface):
+        if not self.observation_fog_enabled:
+            return
+
+        algo = self.selected_algo.get()
+        fog = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        fog.fill((3, 7, 15, 242))
+        for row, col in self.observation_revealed:
+            tile_rect = pygame.Rect(col * 64, row * 64, 64, 64)
+            fog.fill((0, 0, 0, 0), tile_rect)
+            if algo == "PartialObs":
+                pygame.draw.rect(
+                    fog, (88, 183, 220, 65), tile_rect, width=2)
+        surface.blit(fog, (0, 0))
+
+        blind_tile = assets.sprites.get("blind_box")
+        if blind_tile is None:
+            return
+
+        if algo == "NoObs":
+            for row, cells in enumerate(self.gameSokoban.matrix):
+                for col, value in enumerate(cells):
+                    if value in ("@", "$", "*"):
+                        surface.blit(blind_tile, (col * 64, row * 64))
+        elif algo == "PartialObs":
+            for row, cells in enumerate(self.gameSokoban.matrix):
+                for col, value in enumerate(cells):
+                    if (row, col) in self.observation_revealed:
+                        continue
+                    if value in (" ", "?", "#"):
+                        surface.blit(blind_tile, (col * 64, row * 64))
 
     def _prepare_competitor_animation(self, matrix, solution):
         self.competitor_position = None
@@ -1426,7 +2072,7 @@ class SokobanApp:
                 destination = box[0] + dy, box[1] + dx
                 if self._matrix_value(matrix, stance) not in {" ", ".", "@", "E"}:
                     continue
-                if self._matrix_value(matrix, destination) in {"#", "$", "*", "E", "?"}:
+                if self._matrix_value(matrix, destination) in {"#", "$", "*", "E"}:
                     continue
                 positions.add(stance)
                 if destination in docks:
@@ -1439,7 +2085,7 @@ class SokobanApp:
         for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             value = self._matrix_value(
                 matrix, (position[0] + dy, position[1] + dx))
-            if value not in {None, "#", "$", "*", "?", "E"}:
+            if value not in {None, "#", "$", "*", "E"}:
                 count += 1
         return count
 
