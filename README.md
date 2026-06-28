@@ -34,59 +34,96 @@ Dưới đây là ảnh giao diện tổng quan của chương trình:
 
 ### 0.4. GIF minh họa các thuật toán
 
-Các file GIF demo đã có sẵn trong thư mục `GIF/`. Có thể xem trực tiếp ngay trong `README` khi mở trên GitHub hoặc các nền tảng hỗ trợ Markdown hiển thị ảnh động.
+Các file GIF demo đã có sẵn trong thư mục `GIF/`. Phần dưới đây trình bày theo đúng dạng **bảng có khung** gồm 3 cột: nhóm thuật toán, tên thuật toán và GIF demo.
 
-#### Nhóm tìm kiếm không thông tin
-
-<p align="center">
-  <img src="GIF/BFS.gif" alt="BFS" width="30%" />
-  <img src="GIF/DFS.gif" alt="DFS" width="30%" />
-  <img src="GIF/IDS.gif" alt="IDS" width="30%" />
-</p>
-<p align="center"><b>BFS</b> &nbsp;&nbsp;&nbsp; <b>DFS</b> &nbsp;&nbsp;&nbsp; <b>IDS</b></p>
-
-#### Nhóm tìm kiếm có thông tin
-
-<p align="center">
-  <img src="GIF/A_STAR.gif" alt="A*" width="30%" />
-  <img src="GIF/GREEDY.gif" alt="Greedy" width="30%" />
-  <img src="GIF/IDA_STAR.gif" alt="IDA*" width="30%" />
-</p>
-<p align="center"><b>A*</b> &nbsp;&nbsp;&nbsp; <b>Greedy</b> &nbsp;&nbsp;&nbsp; <b>IDA*</b></p>
-
-#### Nhóm tìm kiếm cục bộ
-
-<p align="center">
-  <img src="GIF/SIMPLE_HILL.gif" alt="Simple Hill Climbing" width="30%" />
-  <img src="GIF/LOCAL_BEAM.gif" alt="Local Beam Search" width="30%" />
-  <img src="GIF/SIMULATED_ANNEALING.gif" alt="Simulated Annealing" width="30%" />
-</p>
-<p align="center"><b>Simple Hill</b> &nbsp;&nbsp;&nbsp; <b>Local Beam</b> &nbsp;&nbsp;&nbsp; <b>Simulated Annealing</b></p>
-
-#### Nhóm môi trường phức tạp / CSP
-
-<p align="center">
-  <img src="GIF/AND_OR.gif" alt="AND-OR" width="30%" />
-  <img src="GIF/NO_OBSERVATION.gif" alt="No Observation" width="30%" />
-  <img src="GIF/PARTIALLY_OBSERVATION.gif" alt="Partially Observation" width="30%" />
-</p>
-<p align="center"><b>AND-OR</b> &nbsp;&nbsp;&nbsp; <b>No Observation</b> &nbsp;&nbsp;&nbsp; <b>Partial Observation</b></p>
-
-<p align="center">
-  <img src="GIF/BACKTRACKING.gif" alt="Backtracking" width="30%" />
-  <img src="GIF/MIN_CONFLICT.gif" alt="Min-Conflict" width="30%" />
-  <img src="GIF/AC_3.gif" alt="AC-3" width="30%" />
-</p>
-<p align="center"><b>Backtracking</b> &nbsp;&nbsp;&nbsp; <b>Min-Conflict</b> &nbsp;&nbsp;&nbsp; <b>AC-3</b></p>
-
-#### Nhóm tìm kiếm đối kháng
-
-<p align="center">
-  <img src="GIF/MINIMAX.gif" alt="Minimax" width="30%" />
-  <img src="GIF/ALPHA_BETA.gif" alt="Alpha-Beta" width="30%" />
-  <img src="GIF/EXPECTIMAX.gif" alt="Expectimax" width="30%" />
-</p>
-<p align="center"><b>Minimax</b> &nbsp;&nbsp;&nbsp; <b>Alpha-Beta</b> &nbsp;&nbsp;&nbsp; <b>Expectimax</b></p>
+<table>
+  <thead>
+    <tr>
+      <th>Nhóm thuật toán</th>
+      <th>Thuật toán</th>
+      <th>Demo</th>
+    </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td rowspan="3"><b>Uninformed Search</b></td>
+    <td><b>BFS</b></td>
+    <td align="center"><img src="GIF/BFS.gif" alt="BFS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>DFS</b></td>
+    <td align="center"><img src="GIF/DFS.gif" alt="DFS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>IDS</b></td>
+    <td align="center"><img src="GIF/IDS.gif" alt="IDS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td rowspan="3"><b>Informed Search</b></td>
+    <td><b>A*</b></td>
+    <td align="center"><img src="GIF/A_STAR.gif" alt="A* demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Greedy</b></td>
+    <td align="center"><img src="GIF/GREEDY.gif" alt="Greedy demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>IDA*</b></td>
+    <td align="center"><img src="GIF/IDA_STAR.gif" alt="IDA* demo" width="560"></td>
+  </tr>
+  <tr>
+    <td rowspan="3"><b>Local Search</b></td>
+    <td><b>Simple Hill Climbing</b></td>
+    <td align="center"><img src="GIF/SIMPLE_HILL.gif" alt="Simple Hill Climbing demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Local Beam Search</b></td>
+    <td align="center"><img src="GIF/LOCAL_BEAM.gif" alt="Local Beam Search demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Simulated Annealing</b></td>
+    <td align="center"><img src="GIF/SIMULATED_ANNEALING.gif" alt="Simulated Annealing demo" width="560"></td>
+  </tr>
+  <tr>
+    <td rowspan="6"><b>Complex / CSP</b></td>
+    <td><b>AND-OR</b></td>
+    <td align="center"><img src="GIF/AND_OR.gif" alt="AND-OR demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>No Observation</b></td>
+    <td align="center"><img src="GIF/NO_OBSERVATION.gif" alt="No Observation demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Partial Observation</b></td>
+    <td align="center"><img src="GIF/PARTIALLY_OBSERVATION.gif" alt="Partial Observation demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Backtracking</b></td>
+    <td align="center"><img src="GIF/BACKTRACKING.gif" alt="Backtracking demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Min-Conflict</b></td>
+    <td align="center"><img src="GIF/MIN_CONFLICT.gif" alt="Min-Conflict demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>AC-3</b></td>
+    <td align="center"><img src="GIF/AC_3.gif" alt="AC-3 demo" width="560"></td>
+  </tr>
+  <tr>
+    <td rowspan="3"><b>Adversarial Search</b></td>
+    <td><b>Minimax</b></td>
+    <td align="center"><img src="GIF/MINIMAX.gif" alt="Minimax demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Alpha-Beta</b></td>
+    <td align="center"><img src="GIF/ALPHA_BETA.gif" alt="Alpha-Beta demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Expectimax</b></td>
+    <td align="center"><img src="GIF/EXPECTIMAX.gif" alt="Expectimax demo" width="560"></td>
+  </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -707,7 +744,7 @@ Có thể mở rộng project theo các hướng sau:
 9. Thêm nhiều outcome thật cho AND-OR để thể hiện rõ môi trường nondeterministic.
 10. Tối ưu IDA* hoặc chạy thuật toán trên thread riêng để GUI không bị đứng khi thuật toán lâu.
 
---- 
+---
 
 ## 18. Kết luận
 
