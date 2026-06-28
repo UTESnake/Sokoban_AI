@@ -26,6 +26,70 @@ python -m py_compile main.py assets.py game.py solver.py algorithm\*.py
 
 ---
 
+### 0.3. Ảnh giao diện chính
+
+Dưới đây là ảnh giao diện tổng quan của chương trình:
+
+![Giao diện Sokoban AI](GIF/UI.png)
+
+### 0.4. GIF minh họa các thuật toán
+
+Các file GIF demo đã có sẵn trong thư mục `GIF/`. Có thể xem trực tiếp ngay trong `README` khi mở trên GitHub hoặc các nền tảng hỗ trợ Markdown hiển thị ảnh động.
+
+#### Nhóm tìm kiếm không thông tin
+
+<p align="center">
+  <img src="GIF/BFS.gif" alt="BFS" width="30%" />
+  <img src="GIF/DFS.gif" alt="DFS" width="30%" />
+  <img src="GIF/IDS.gif" alt="IDS" width="30%" />
+</p>
+<p align="center"><b>BFS</b> &nbsp;&nbsp;&nbsp; <b>DFS</b> &nbsp;&nbsp;&nbsp; <b>IDS</b></p>
+
+#### Nhóm tìm kiếm có thông tin
+
+<p align="center">
+  <img src="GIF/A_STAR.gif" alt="A*" width="30%" />
+  <img src="GIF/GREEDY.gif" alt="Greedy" width="30%" />
+  <img src="GIF/IDA_STAR.gif" alt="IDA*" width="30%" />
+</p>
+<p align="center"><b>A*</b> &nbsp;&nbsp;&nbsp; <b>Greedy</b> &nbsp;&nbsp;&nbsp; <b>IDA*</b></p>
+
+#### Nhóm tìm kiếm cục bộ
+
+<p align="center">
+  <img src="GIF/SIMPLE_HILL.gif" alt="Simple Hill Climbing" width="30%" />
+  <img src="GIF/LOCAL_BEAM.gif" alt="Local Beam Search" width="30%" />
+  <img src="GIF/SIMULATED_ANNEALING.gif" alt="Simulated Annealing" width="30%" />
+</p>
+<p align="center"><b>Simple Hill</b> &nbsp;&nbsp;&nbsp; <b>Local Beam</b> &nbsp;&nbsp;&nbsp; <b>Simulated Annealing</b></p>
+
+#### Nhóm môi trường phức tạp / CSP
+
+<p align="center">
+  <img src="GIF/AND_OR.gif" alt="AND-OR" width="30%" />
+  <img src="GIF/NO_OBSERVATION.gif" alt="No Observation" width="30%" />
+  <img src="GIF/PARTIALLY_OBSERVATION.gif" alt="Partially Observation" width="30%" />
+</p>
+<p align="center"><b>AND-OR</b> &nbsp;&nbsp;&nbsp; <b>No Observation</b> &nbsp;&nbsp;&nbsp; <b>Partial Observation</b></p>
+
+<p align="center">
+  <img src="GIF/BACKTRACKING.gif" alt="Backtracking" width="30%" />
+  <img src="GIF/MIN_CONFLICT.gif" alt="Min-Conflict" width="30%" />
+  <img src="GIF/AC_3.gif" alt="AC-3" width="30%" />
+</p>
+<p align="center"><b>Backtracking</b> &nbsp;&nbsp;&nbsp; <b>Min-Conflict</b> &nbsp;&nbsp;&nbsp; <b>AC-3</b></p>
+
+#### Nhóm tìm kiếm đối kháng
+
+<p align="center">
+  <img src="GIF/MINIMAX.gif" alt="Minimax" width="30%" />
+  <img src="GIF/ALPHA_BETA.gif" alt="Alpha-Beta" width="30%" />
+  <img src="GIF/EXPECTIMAX.gif" alt="Expectimax" width="30%" />
+</p>
+<p align="center"><b>Minimax</b> &nbsp;&nbsp;&nbsp; <b>Alpha-Beta</b> &nbsp;&nbsp;&nbsp; <b>Expectimax</b></p>
+
+---
+
 ## 1. Thông tin dự án
 
 | Mục | Nội dung |
@@ -371,6 +435,26 @@ Animation được chạy bằng:
 - `Game.move(...)` để cập nhật trạng thái;
 - `pygame` để render lại bản đồ;
 - đường trail màu để biểu diễn đường đi của người chơi.
+
+
+### 10.3. Chèn ảnh giao diện và GIF vào README
+
+Project hiện đã có sẵn thư mục `GIF/` chứa ảnh giao diện và ảnh động minh họa cho từng thuật toán. Vì vậy có thể nhúng trực tiếp vào `README.md` bằng đường dẫn tương đối.
+
+Ví dụ:
+
+```markdown
+![Giao diện](GIF/UI.png)
+![BFS](GIF/BFS.gif)
+![A*](GIF/A_STAR.gif)
+![No Observation](GIF/NO_OBSERVATION.gif)
+```
+
+Ưu điểm của cách này:
+
+- xem trực tiếp giao diện và animation ngay trong trang README;
+- thuận tiện khi nộp GitHub hoặc demo cho giảng viên;
+- không cần mở riêng từng file GIF trong thư mục.
 
 ### 10.2. Trạng thái hiện tại của chức năng xuất GIF
 
