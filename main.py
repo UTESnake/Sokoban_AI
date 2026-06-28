@@ -11,6 +11,7 @@ import assets
 from game import Game
 from solver import Solve
 from algorithm.algo_adversarial import alpha_beta, expectimax, minimax
+from algorithm.common import apply_step, box_toDock, heuristic, validMove, worker_toBox
 from algorithm.algo_complex import (
     ac3_search,
     and_or_search,
@@ -142,14 +143,6 @@ ALGO_VISUALS = {
     for _group, buttons in ALGO_GROUPS
     for key, label, _icon, color in buttons
 }
-
-TRAIL_REPEAT_COLORS = [
-    "#FF9F43",  # Lần 2
-    "#EF476F",  # Lần 3
-    "#FFD166",  # Lần 4
-    "#7B61FF",  # Lần 5
-    "#00B8A9",  # Lần 6 trở lên
-]
 
 ALGORITHM_HANDLERS = {
     "BFS": bfs_search,
@@ -348,10 +341,6 @@ class SokobanApp:
         self.win_notified     = False
         self.victory_popup    = None
         self.comparison_results = {}
-        self.trail_points = []
-        self.trail_segments = []
-        self.trail_segment_visits = {}
-        self.trail_color = ACCENT
         self.competitor_position = None
         self.competitor_previous_position = None
         self.competitor_under_tile = " "
@@ -438,29 +427,15 @@ class SokobanApp:
         for title, buttons in ALGO_GROUPS:
             self._build_algo_group(f, title, buttons)
 
-        # Start / Stop — rộng hơn theo LEFT_W
+        # Restart / Stop — rộng hơn theo LEFT_W
         tk.Frame(f, height=1, bg=LINE).pack(fill="x", padx=18, pady=(4, 6))
-        RoundedButton(f, text="Start", icon="▶", bg="#6FCFA9", fg=BTN_TEXT,
+        RoundedButton(f, text="Restart", icon="▶", bg="#6FCFA9", fg=BTN_TEXT,
                       width=LEFT_W - 58, height=38, command=self.init_game
                       ).pack(padx=18, pady=(0, 5))
         self.stop_button = RoundedButton(
             f, text="Stop", icon="■", bg="#E26087", fg=BTN_TEXT,
             width=LEFT_W - 58, height=38, command=self.stop_game)
         self.stop_button.pack(padx=18, pady=(0, 8))
-
-        legend = tk.Frame(
-            f, bg="#F8FAFF", highlightbackground=LINE, highlightthickness=1)
-        legend.pack(fill="x", padx=18, pady=(0, 12))
-        tk.Label(
-            legend, text="CHÚ THÍCH ĐƯỜNG ĐI",
-            font=("Segoe UI", 8, "bold"), bg="#F8FAFF",
-            fg=TEXT_DARK).pack(anchor="w", padx=10, pady=(7, 2))
-        self.trail_legend_canvas = tk.Canvas(
-            legend, height=58, bg="#F8FAFF", highlightthickness=0)
-        self.trail_legend_canvas.pack(fill="x", padx=7, pady=(0, 6))
-        self.trail_legend_canvas.bind(
-            "<Configure>", lambda _: self._draw_trail_legend())
-        self._draw_trail_legend()
 
     def _update_left_scrollregion(self, _event=None):
         self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
@@ -499,40 +474,7 @@ class SokobanApp:
             self.combobox.set(target_level)
         self.init_game()
         self._refresh_level_profile()
-        self._draw_trail_legend()
         self.root.after(20, self.run_solution)
-
-    def _trail_color_for_visit(self, visit_number):
-        if visit_number <= 1:
-            return ALGO_VISUALS.get(
-                self.selected_algo.get(), {"color": ACCENT})["color"]
-        return TRAIL_REPEAT_COLORS[min(
-            visit_number - 2, len(TRAIL_REPEAT_COLORS) - 1)]
-
-    def _draw_trail_legend(self):
-        if not hasattr(self, "trail_legend_canvas"):
-            return
-        canvas = self.trail_legend_canvas
-        canvas.delete("all")
-        width = max(canvas.winfo_width(), LEFT_W - 52)
-        items = [
-            ("1 lần", self._trail_color_for_visit(1)),
-            ("2 lần", self._trail_color_for_visit(2)),
-            ("3 lần", self._trail_color_for_visit(3)),
-            ("4 lần", self._trail_color_for_visit(4)),
-            ("5 lần", self._trail_color_for_visit(5)),
-            ("6+ lần", self._trail_color_for_visit(6)),
-        ]
-        column_width = width // 3
-        for index, (label, color) in enumerate(items):
-            row, column = divmod(index, 3)
-            x = column * column_width + 9
-            y = row * 25 + 9
-            canvas.create_line(
-                x, y, x + 25, y, fill=color, width=7, capstyle=tk.ROUND)
-            canvas.create_text(
-                x + 32, y, text=label, anchor="w",
-                font=("Segoe UI", 8, "bold"), fill="#56617D")
 
     def _on_level_selected(self, _event=None):
         self._refresh_level_profile()
@@ -784,7 +726,7 @@ class SokobanApp:
 
     def _map_for_algorithm(self, matrix, algo, level):
         result = copy.deepcopy(matrix)
-        if algo != "PartialObs":
+        if algo not in ("NoObs", "PartialObs"):
             return result
 
         for row, col in LEVEL_OBSERVATION_UNKNOWN_CELLS.get(level, ()):
@@ -820,7 +762,6 @@ class SokobanApp:
         self.dockList = self.gameSokoban.listDock()
         self.manual_steps = 0
         self.win_notified = False
-        self._reset_trail()
         self._reset_observation_fog()
 
         self.root.update_idletasks()
@@ -861,7 +802,6 @@ class SokobanApp:
         self.dockList = self.gameSokoban.listDock()
         self.manual_steps = 0
         self.win_notified = False
-        self._reset_trail()
         self._reset_observation_fog()
 
         map_cols = max(len(row) for row in matrix)
@@ -881,7 +821,7 @@ class SokobanApp:
             if event.type == pygame.QUIT:
                 return
 
-        # No Observation chỉ nhìn thấy vùng đã khám phá.
+        # Observation modes render hidden information through the fog layer.
         if self.observation_fog_enabled:
             self.screen.fill("#080D18")
         else:
@@ -892,7 +832,6 @@ class SokobanApp:
         map_h = self._map_surf.get_height()
         self.gameSokoban.fill_screen_with_floor((map_w, map_h), self._map_surf)
         self.gameSokoban.print_game(self._map_surf)
-        self._draw_solution_trail(self._map_surf)
         self._draw_observation_fog(self._map_surf)
 
         # Blit map_surf vào giữa screen theo offset đã tính
@@ -951,7 +890,6 @@ class SokobanApp:
 
         if self.gameSokoban.matrix != before:
             self.manual_steps += 1
-            self._record_trail_point()
             self._reveal_current_observation()
             self.solution_var.set(f"Manual steps: {self.manual_steps}")
             if self.gameSokoban.is_completed(self.dockList):
@@ -1032,9 +970,11 @@ class SokobanApp:
             )
             self.solution_var.set(plan_text)
             self._log(
-                f"{algo}: returned {plan_kind}; replay branch={real_steps} steps; "
-                f"metric={metric_label}; time={elapsed_ms:.1f} ms."
+                f"{ALGO_VISUALS.get(algo, {}).get('label', algo)}: tìm được "
+                f"{real_steps} bước replay ({plan_kind}); metric={metric_label}; "
+                f"thời gian={elapsed_ms:.1f} ms."
             )
+            self._log(self._search_formula_note(algo))
             note = result.get("note")
             if note:
                 self._log(note)
@@ -1087,8 +1027,32 @@ class SokobanApp:
 
         self._save_comparison_result(level, algo, "ok", len(result), elapsed_ms)
         self.solution_var.set(result)
-        self._log(f"{algo}: found {len(result)} steps in {elapsed_ms:.1f} ms.")
+        self._log(
+            f"{ALGO_VISUALS.get(algo, {}).get('label', algo)}: tìm được "
+            f"{len(result)} bước; thời gian={elapsed_ms:.1f} ms.")
+        self._log(self._search_formula_note(algo))
         self._start_solution_animation(result, display_matrix)
+
+    def _search_formula_note(self, algo):
+        base = (
+            "Cách đọc log bước chạy: g(n)=số bước đã đi, "
+            "h(n)=box_toDock + worker_toBox, f(n)=g(n)+h(n)."
+        )
+        if algo == "Astar":
+            return base + " A* ưu tiên node có f(n) nhỏ nhất trong frontier."
+        if algo == "SMAstar":
+            return base + " IDA* dùng f(n) để quyết định đi tiếp hay cắt nhánh theo bound."
+        if algo == "Greedy":
+            return base + " Greedy ưu tiên h(n) nhỏ, không cộng thêm g(n)."
+        if algo in {"BFS", "DFS1", "IDS"}:
+            return base + " Nhóm không thông tin dùng g(n)/thứ tự duyệt, h(n) chỉ để bạn quan sát trạng thái còn xa goal bao nhiêu."
+        if algo in {"HillClimb", "BeamSearch", "SimAnneal"}:
+            return base + " Nhóm cục bộ dùng h(n) làm độ tốt của trạng thái lân cận."
+        if algo in {"NoObs", "PartialObs"}:
+            return base + " Môi trường quan sát hạn chế chọn action theo belief-state/percept, log vẫn chấm nhánh replay bằng f(n)."
+        if algo in {"UCS", "BFS2", "DFS2"}:
+            return base + " Tìm kiếm đối kháng còn cộng rủi ro từ MIN/E, nhất là thế gọng kìm và chặn ô đẩy."
+        return base
 
     def _handle_algorithm_failure(
             self, level, algo, elapsed_ms, failed_step, reason,
@@ -1363,8 +1327,6 @@ class SokobanApp:
         self._cancel_solution_animation()
         self._set_pause_state(False)
         self._prepare_display_map(copy.deepcopy(matrix))
-        self.trail_color = ALGO_VISUALS.get(
-            self.selected_algo.get(), {"color": ACCENT})["color"]
         self.current_solution = solution
         self.solution_index = 0
         self._prepare_competitor_animation(matrix, solution)
@@ -1394,16 +1356,225 @@ class SokobanApp:
         }
         if step in moves:
             y, x = moves[step]
-            self.gameSokoban.move(y, x, self.dockList)
-            self._record_trail_point()
+            decision_context = self._movement_decision_context(
+                step, copy.deepcopy(self.gameSokoban.matrix))
+            try:
+                moved = self.gameSokoban.move(y, x, self.dockList)
+            except Exception as exc:
+                self.solution_job = None
+                self._set_pause_state(True)
+                self._log(
+                    f"Replay stopped at step {self.solution_index + 1}: {exc}")
+                return
+            if not moved:
+                self.solution_job = None
+                self._set_pause_state(True)
+                self._log(
+                    f"Replay stopped at step {self.solution_index + 1}: "
+                    f"action {step} không hợp lệ.")
+                return
             self._reveal_current_observation()
 
         self.solution_index += 1
+        if step in moves:
+            self._log_movement_decision(step, decision_context)
         self._move_competitor()
         self.solution_var.set(
             f"{self.current_solution}  ({self.solution_index}/{len(self.current_solution)})"
         )
         self.solution_job = self.root.after(ANIMATION_STEP_DELAY, self._play_next_solution_step)
+
+    def _movement_decision_context(self, step, matrix):
+        state = self._solve_state_from_matrix(matrix)
+        g_next = self.solution_index + 1
+        h_before = self._state_h(state)
+        candidates = []
+
+        try:
+            actions = validMove(state)
+        except Exception:
+            actions = []
+
+        for action in actions:
+            child = copy.deepcopy(state)
+            try:
+                if not apply_step(child, action):
+                    continue
+            except Exception:
+                continue
+
+            h_value = self._state_h(child)
+            candidates.append({
+                "action": action,
+                "g": g_next,
+                "h": h_value,
+                "f": g_next + h_value,
+                "box_h": self._state_box_h(child),
+                "worker_h": self._state_worker_h(child),
+            })
+
+        chosen = next(
+            (item for item in candidates if item["action"] == step), None)
+        return {
+            "g_before": self.solution_index,
+            "h_before": h_before,
+            "chosen": chosen,
+            "candidates": candidates,
+        }
+
+    def _log_movement_decision(self, step, context):
+        chosen = context.get("chosen") if context else None
+        candidates = context.get("candidates", []) if context else []
+        step_no = self.solution_index
+        label = ALGO_VISUALS.get(
+            self.selected_algo.get(), {"label": self.selected_algo.get()})["label"]
+
+        if chosen is None:
+            self._log(
+                f"Bước {step_no}: đi {self._step_name(step)}; không tính được "
+                "f/g/h cho action này từ validMove, replay vẫn hợp lệ trên map.")
+            return
+
+        rank_f = self._candidate_rank(candidates, step, key="f")
+        rank_h = self._candidate_rank(candidates, step, key="h")
+        best_f = self._best_candidate(candidates, key="f")
+        delta_h = context.get("h_before", 0) - chosen["h"]
+
+        detail = (
+            f"Bước {step_no}: {label} chọn {self._step_name(step)} | "
+            f"g={self._fmt_cost(chosen['g'])}, "
+            f"h={self._fmt_cost(chosen['h'])} "
+            f"(box={self._fmt_cost(chosen['box_h'])}, "
+            f"worker={self._fmt_cost(chosen['worker_h'])}), "
+            f"f={self._fmt_cost(chosen['f'])}."
+        )
+        reason = self._movement_reason(
+            self.selected_algo.get(), step, chosen, best_f, rank_f, rank_h, delta_h)
+        self._log(f"{detail} {reason}")
+
+    def _movement_reason(self, algo, step, chosen, best_f, rank_f, rank_h, delta_h):
+        delta_text = self._fmt_delta(delta_h)
+        if algo == "Astar":
+            return (
+                f"Lý do: A* so sánh f=g+h; action này xếp #{rank_f} theo f "
+                f"trong các nước hợp lệ, h {delta_text}."
+            )
+        if algo == "SMAstar":
+            return (
+                f"Lý do: IDA* giữ nhánh khi f không vượt bound hiện tại; "
+                f"action này có f={self._fmt_cost(chosen['f'])}, h {delta_text}."
+            )
+        if algo == "Greedy":
+            return (
+                f"Lý do: Greedy nhìn h(n); action này xếp #{rank_h} theo h "
+                f"và h {delta_text}."
+            )
+        if algo == "BFS":
+            return (
+                f"Lý do: BFS lấy node nông nhất trong queue FIFO; g={chosen['g']} "
+                f"là độ sâu replay, h {delta_text} chỉ để tham khảo."
+            )
+        if algo == "DFS1":
+            return (
+                f"Lý do: DFS đi sâu theo thứ tự sinh trạng thái; bước này tăng "
+                f"độ sâu lên g={chosen['g']}, h {delta_text}."
+            )
+        if algo == "IDS":
+            return (
+                f"Lý do: IDS chạy DFS theo từng giới hạn độ sâu; bước này nằm "
+                f"trong bound hiện tại với g={chosen['g']}, h {delta_text}."
+            )
+        if algo in {"HillClimb", "BeamSearch", "SimAnneal"}:
+            return (
+                f"Lý do: tìm kiếm cục bộ ưu tiên trạng thái lân cận có h tốt; "
+                f"action này xếp #{rank_h} theo h, h {delta_text}."
+            )
+        if algo == "NoObs":
+            return (
+                f"Lý do: No Observation dùng một plan an toàn cho belief-state; "
+                f"trên nhánh replay action này có f={self._fmt_cost(chosen['f'])}, h {delta_text}."
+            )
+        if algo == "PartialObs":
+            return (
+                f"Lý do: Partial Observation cập nhật percept rồi replan; "
+                f"action này giữ nhánh hiện tại với f={self._fmt_cost(chosen['f'])}, h {delta_text}."
+            )
+        if algo in {"UCS", "BFS2", "DFS2"}:
+            return (
+                f"Lý do: thuật toán đối kháng chọn đường vừa giảm h vừa tránh MIN/E; "
+                f"f replay={self._fmt_cost(chosen['f'])}, đồng thời MIN sẽ tìm thế chặn/gọng kìm."
+            )
+        if best_f and best_f["action"] == step:
+            return f"Lý do: đây là action có f thấp nhất trong các nước hợp lệ; h {delta_text}."
+        return (
+            f"Lý do: action này thuộc path đã tìm; local-best theo f hiện là "
+            f"{self._step_name(best_f['action']) if best_f else 'không có'}, h {delta_text}."
+        )
+
+    def _solve_state_from_matrix(self, matrix):
+        state = Solve(copy.deepcopy(matrix))
+        if hasattr(self, "dockList"):
+            state.dockListPosition = list(self.dockList)
+        return state
+
+    def _state_h(self, state):
+        return self._safe_cost(lambda: heuristic(state))
+
+    def _state_box_h(self, state):
+        return self._safe_cost(lambda: box_toDock(state))
+
+    def _state_worker_h(self, state):
+        return self._safe_cost(lambda: worker_toBox(state))
+
+    @staticmethod
+    def _safe_cost(callback):
+        try:
+            value = callback()
+        except Exception:
+            return float("inf")
+        return value
+
+    @staticmethod
+    def _candidate_rank(candidates, action, key):
+        ordered = sorted(candidates, key=lambda item: (item[key], item["action"]))
+        for index, item in enumerate(ordered, start=1):
+            if item["action"] == action:
+                return index
+        return len(ordered) + 1
+
+    @staticmethod
+    def _best_candidate(candidates, key):
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: (item[key], item["action"]))
+
+    @staticmethod
+    def _fmt_cost(value):
+        if value == float("inf"):
+            return "inf"
+        if isinstance(value, float) and not value.is_integer():
+            return f"{value:.1f}"
+        return str(int(value))
+
+    @staticmethod
+    def _fmt_delta(delta):
+        if delta == float("inf") or delta == float("-inf"):
+            return "không xác định"
+        if delta > 0:
+            return f"giảm {SokobanApp._fmt_cost(delta)}"
+        if delta < 0:
+            return f"tăng {SokobanApp._fmt_cost(abs(delta))}"
+        return "không đổi"
+
+    @staticmethod
+    def _step_name(step):
+        names = {
+            "U": "Lên",
+            "D": "Xuống",
+            "L": "Trái",
+            "R": "Phải",
+        }
+        return f"{names.get(step, step)} ({step})"
 
     def _reset_observation_fog(self):
         algo = self.selected_algo.get()
@@ -1412,7 +1583,7 @@ class SokobanApp:
         self._partialobs_permanent = set()
         if algo == "NoObs":
             self._reveal_current_observation()
-            self._log("No Observation: thấy layout và đích, ẩn trạng thái ban đầu.")
+            self._log("No Observation: che map bằng blind_box, chỉ lộ vùng quanh worker.")
         elif algo == "PartialObs":
             self._init_partialobs()
             self._reveal_current_observation()
@@ -1463,7 +1634,8 @@ class SokobanApp:
 
         algo = self.selected_algo.get()
         if algo == "NoObs":
-            self.observation_revealed = self._all_map_cells()
+            self.observation_revealed = self._observation_cells_around(
+                worker, radius=1)
         elif algo == "PartialObs":
             local_view = self._observation_cells_around(worker, radius=1)
             self._reveal_unknown_floor_cells(local_view)
@@ -1491,9 +1663,15 @@ class SokobanApp:
 
         if algo == "NoObs":
             for row, cells in enumerate(self.gameSokoban.matrix):
-                for col, value in enumerate(cells):
-                    if value in ("@", "$", "*"):
-                        surface.blit(blind_tile, (col * 64, row * 64))
+                for col, _value in enumerate(cells):
+                    if (row, col) in self.observation_revealed:
+                        continue
+                    surface.blit(blind_tile, (col * 64, row * 64))
+            worker_position = self.gameSokoban.getPosition()
+            worker_tile = assets.sprites.get("worker")
+            if worker_position is not None and worker_tile is not None:
+                row, col = worker_position
+                surface.blit(worker_tile, (col * 64, row * 64))
         elif algo == "PartialObs":
             for row, cells in enumerate(self.gameSokoban.matrix):
                 for col, value in enumerate(cells):
@@ -1586,6 +1764,7 @@ class SokobanApp:
 
         if self.solution_index % 6 == 1:
             behavior_labels = {
+                "pincer": "MIN đang khép gọng kìm quanh người chơi",
                 "chase": "MIN đang đuổi người chơi",
                 "block": "MIN đang chặn vị trí đứng đẩy thùng",
                 "guard": "MIN đang canh đích hoặc hành lang quan trọng",
@@ -1595,7 +1774,12 @@ class SokobanApp:
     def _choose_competitor_target(self, worker, protected_cells):
         matrix = self.gameSokoban.matrix
 
-        # 1) Nếu có thể áp sát MAX trong vài bước, ưu tiên truy đuổi.
+        # 1) Gọng kìm: ép MAX vào phía tường, thùng hoặc hành lang hẹp.
+        target = self._select_pincer_target(worker, protected_cells)
+        if target is not None:
+            return target, "pincer"
+
+        # 2) Nếu có thể áp sát MAX trong vài bước, ưu tiên truy đuổi.
         chase_targets = {
             (worker[0] + dy, worker[1] + dx)
             for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
@@ -1614,7 +1798,7 @@ class SokobanApp:
             if value in {"$", "*"}
         ]
 
-        # 2) Chặn ô đứng đẩy thùng — hành vi phù hợp nhất với Sokoban.
+        # 3) Chặn ô đứng đẩy thùng — hành vi phù hợp nhất với Sokoban.
         push_stances = {
             position for position in self._important_push_stances(
                 boxes, self.dockList)
@@ -1625,7 +1809,7 @@ class SokobanApp:
         if target is not None:
             return target, "block"
 
-        # 3) Canh đích, đường từ thùng tới đích hoặc nút cổ chai.
+        # 4) Canh đích, đường từ thùng tới đích hoặc nút cổ chai.
         guard_targets = {
             dock for dock in self.dockList
             if self._competitor_cell_is_open(dock, protected_cells)
@@ -1645,6 +1829,74 @@ class SokobanApp:
         if target is not None:
             return target, "guard"
         return None, "guard"
+
+    def _select_pincer_target(self, worker, protected_cells):
+        candidates = {
+            (worker[0] + dy, worker[1] + dx)
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            if self._competitor_cell_is_open(
+                (worker[0] + dy, worker[1] + dx), protected_cells)
+        }
+
+        choices = []
+        for target in candidates:
+            path = self._competitor_bfs_path(
+                self.competitor_position, {target}, protected_cells)
+            if not path:
+                continue
+            score = self._pincer_pressure_score(target, worker)
+            score -= 0.8 * (len(path) - 1)
+            choices.append((score, -len(path), target))
+
+        if not choices:
+            return None
+
+        choices.sort(reverse=True)
+        algo = self.selected_algo.get()
+        if algo == "DFS2" and len(choices) > 1:
+            top = choices[:min(2, len(choices))]
+            return top[self.solution_index % len(top)][2]
+        return choices[0][2]
+
+    def _pincer_pressure_score(self, target, worker):
+        matrix = self.gameSokoban.matrix
+        direction = (target[0] - worker[0], target[1] - worker[1])
+        opposite = (worker[0] - direction[0], worker[1] - direction[1])
+        opposite_value = self._matrix_value(matrix, opposite)
+
+        score = 42.0
+        if opposite_value in {None, "#", "$", "*", "E"}:
+            score += 34
+        elif self._walkable_neighbor_count(opposite) <= 2:
+            score += 14
+
+        escape_cells = self._worker_escape_cells(worker, blocked_by=target)
+        score += max(0, 4 - len(escape_cells)) * 13
+
+        boxes = [
+            (row, col)
+            for row, cells in enumerate(matrix)
+            for col, value in enumerate(cells)
+            if value in {"$", "*"}
+        ]
+        if target in self._important_push_stances(boxes, self.dockList):
+            score += 18
+
+        if target == self.competitor_previous_position:
+            score -= 10
+        return score
+
+    def _worker_escape_cells(self, worker, blocked_by=None):
+        escape_cells = set()
+        matrix = self.gameSokoban.matrix
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            position = (worker[0] + dy, worker[1] + dx)
+            if position == blocked_by:
+                continue
+            value = self._matrix_value(matrix, position)
+            if value in {" ", "."}:
+                escape_cells.add(position)
+        return escape_cells
 
     def _select_reachable_tactical_target(self, targets, protected_cells):
         choices = []
@@ -1825,54 +2077,6 @@ class SokobanApp:
     @staticmethod
     def _manhattan(first, second):
         return abs(first[0] - second[0]) + abs(first[1] - second[1])
-
-    def _reset_trail(self):
-        self.trail_points = []
-        self.trail_segments = []
-        self.trail_segment_visits = {}
-        self.trail_color = ALGO_VISUALS.get(
-            self.selected_algo.get(), {"color": ACCENT})["color"]
-        self._record_trail_point()
-
-    def _record_trail_point(self):
-        if not hasattr(self, "gameSokoban"):
-            return
-        position = self.gameSokoban.getPosition()
-        if position is None:
-            return
-        row, col = position
-        point = (col * 64 + 32, row * 64 + 32)
-        if not self.trail_points or self.trail_points[-1] != point:
-            if self.trail_points:
-                previous = self.trail_points[-1]
-                segment_key = tuple(sorted((previous, point)))
-                visit_number = self.trail_segment_visits.get(segment_key, 0) + 1
-                self.trail_segment_visits[segment_key] = visit_number
-                self.trail_segments.append((previous, point, visit_number))
-            self.trail_points.append(point)
-
-    def _draw_solution_trail(self, surface):
-        if not self.trail_segments:
-            return
-        overlay = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-        for start, end, visit_number in self.trail_segments:
-            color = pygame.Color(self._trail_color_for_visit(visit_number))
-            rgba = (color.r, color.g, color.b, 190)
-            line_width = 7 if visit_number == 1 else min(12, 7 + visit_number)
-            pygame.draw.line(overlay, rgba, start, end, line_width)
-            pygame.draw.circle(overlay, rgba, end, max(4, line_width // 2))
-
-        # Đánh dấu nơi một cạnh đã được đi qua nhiều lần.
-        for (start, end), visits in self.trail_segment_visits.items():
-            if visits < 2:
-                continue
-            center = ((start[0] + end[0]) // 2, (start[1] + end[1]) // 2)
-            color = pygame.Color(self._trail_color_for_visit(visits))
-            pygame.draw.circle(
-                overlay, (color.r, color.g, color.b, 235),
-                center, min(11, 5 + visits))
-            pygame.draw.circle(overlay, (255, 255, 255, 235), center, 3)
-        surface.blit(overlay, (0, 0))
 
     def _cancel_solution_animation(self):
         if self.solution_job is not None:

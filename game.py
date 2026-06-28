@@ -63,11 +63,18 @@ class Game:
                     dockList.append((i, j))
         return dockList
 
+    def _cell(self, x, y):
+        if x < 0 or x >= len(self.matrix):
+            return "#"
+        if y < 0 or y >= len(self.matrix[x]):
+            return "#"
+        return self.matrix[x][y]
+
     def canMove(self, x, y):
-        return self.matrix[x][y] not in ["#", "$", "*", "E"]
+        return self._cell(x, y) not in ["#", "$", "*", "E"]
 
     def canPushBox(self, x, y):
-        return self.matrix[x][y] not in ["#", "$", "*", "E"]
+        return self._cell(x, y) not in ["#", "$", "*", "E"]
 
     def update_position(self, old_x, old_y, new_x, new_y, symbol):
         self.matrix[old_x][old_y] = " "
@@ -89,17 +96,25 @@ class Game:
                 self.matrix[new_box_x][new_box_y] = "$"
             elif self.matrix[new_box_x][new_box_y] == ".":
                 self.matrix[new_box_x][new_box_y] = "*"
+            return True
+        return False
 
     def move(self, y, x, dock):
-        self.stack_matrix.append(copy.deepcopy(self.matrix))
         cur_x, cur_y = self.getPosition()
         next_x, next_y = cur_x + y, cur_y + x
+        before = copy.deepcopy(self.matrix)
+        moved = False
 
         if self.canMove(next_x, next_y):
             self.next_move(y, x)
-        elif self.matrix[next_x][next_y] in ["*", "$"]:
-            self.move_box(y, x)
+            moved = True
+        elif self._cell(next_x, next_y) in ["*", "$"]:
+            moved = self.move_box(y, x)
 
         for i, j in dock:
             if self.matrix[i][j] not in ["*", "@"]:
                 self.matrix[i][j] = "."
+
+        if moved:
+            self.stack_matrix.append(before)
+        return moved

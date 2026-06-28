@@ -695,6 +695,7 @@ def _opponent_threat_score(state):
 
     # E gần người chơi.
     score += max(0, 7 - _manhattan(competitor, worker)) * 3
+    score += _pincer_pressure_score(state, competitor)
 
     # E gần box, dock, vị trí đứng đẩy box.
     for box in state.boxPosition():
@@ -953,6 +954,7 @@ def _opponent_action_score(state, next_position):
 
     if worker is not None:
         score += max(0, 7 - _manhattan(next_position, worker)) * 3
+        score += _pincer_pressure_score(state, next_position)
 
     for box in boxes:
         score += max(0, 6 - _manhattan(next_position, box)) * 3
@@ -964,6 +966,77 @@ def _opponent_action_score(state, next_position):
         score += max(0, 5 - _manhattan(next_position, dock)) * 2
 
     return score
+
+
+def _pincer_pressure_score(state, competitor_position):
+    worker = state.workerPosition()
+    if worker is None:
+        return 0
+
+    distance = _manhattan(competitor_position, worker)
+    score = max(0, 6 - distance) * 2
+
+    if distance == 1:
+        direction = (
+            competitor_position[0] - worker[0],
+            competitor_position[1] - worker[1],
+        )
+        opposite = (
+            worker[0] - direction[0],
+            worker[1] - direction[1],
+        )
+
+        if _pincer_blocker(state, opposite):
+            score += 22
+        elif _walkable_neighbor_count(state, opposite) <= 2:
+            score += 8
+
+        exits = _worker_escape_count(state, worker, blocked_by=competitor_position)
+        score += max(0, 4 - exits) * 9
+    else:
+        pincer_targets = _pincer_targets_around_worker(state, worker)
+        if pincer_targets:
+            nearest = min(
+                _manhattan(competitor_position, target)
+                for target in pincer_targets
+            )
+            score += max(0, 5 - nearest) * 4
+
+    return score
+
+
+def _pincer_targets_around_worker(state, worker):
+    targets = []
+    matrix = state.getMatrix()
+
+    for dy, dx in MOVE_DELTAS.values():
+        target = (worker[0] + dy, worker[1] + dx)
+        if _matrix_value(matrix, target) not in {" ", "."}:
+            continue
+
+        opposite = (worker[0] - dy, worker[1] - dx)
+        if _pincer_blocker(state, opposite) or _walkable_neighbor_count(state, target) <= 2:
+            targets.append(target)
+
+    return targets
+
+
+def _pincer_blocker(state, position):
+    return _matrix_value(state.getMatrix(), position) in {None, "#", "$", "*", "E"}
+
+
+def _worker_escape_count(state, worker, blocked_by=None):
+    count = 0
+    matrix = state.getMatrix()
+
+    for dy, dx in MOVE_DELTAS.values():
+        position = (worker[0] + dy, worker[1] + dx)
+        if position == blocked_by:
+            continue
+        if _matrix_value(matrix, position) in {" ", "."}:
+            count += 1
+
+    return count
 
 
 def _walkable_neighbor_count(state, position):

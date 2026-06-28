@@ -193,6 +193,10 @@ def _matrix_copy_from_game(game):
     return copy.deepcopy(game.getMatrix())
 
 
+def _matrix_has_unknown(matrix):
+    return any("?" in row for row in matrix)
+
+
 def _replace_unknowns(matrix, value=" "):
     """
     Ký hiệu '?' dùng cho môi trường quan sát hạn chế.
@@ -500,15 +504,16 @@ def search_with_no_observation(game):
     print("Processing NO OBSERVATION BELIEF-STATE SEARCH......")
     start_time = time.time()
     initial_matrix = _matrix_copy_from_game(game)
+    has_unknown = _matrix_has_unknown(initial_matrix)
     start_states = _sensorless_initial_belief_variants(initial_matrix)
-    belief_model = "hidden_object"
+    belief_model = "hidden_object" if has_unknown else "known_single_world"
 
     solution, node_generated, belief_expansions = _conformant_plan_from_belief(
         start_states,
         max_expansions=MAX_BELIEF_EXPANSIONS,
     )
 
-    if solution is None:
+    if solution is None and has_unknown:
         fallback_states = _sensorless_safe_layout_belief_variants(initial_matrix)
         fallback_key = _belief_key(fallback_states)
 
@@ -535,10 +540,15 @@ def search_with_no_observation(game):
             "Sensorless/conformant: không có percept, action phải hợp lệ "
             "và đạt goal trong mọi world thuộc belief-state."
         )
-        if belief_model == "safe_layout_uncertainty":
+        if not has_unknown:
             note += (
-                " Belief object bị che hoàn toàn của level này không có plan chung, "
-                "nên NoObs dùng belief layout an toàn để vẫn sinh kế hoạch conformant."
+                " Map hiện tại không có '?' nên B0 chỉ có 1 world; "
+                "No Observation vì vậy replay như một kế hoạch thường."
+            )
+        elif belief_model == "safe_layout_uncertainty":
+            note += (
+                " Belief-state ban đầu quá bất định để có plan chung trực tiếp, "
+                "nên NoObs dùng tập layout an toàn để vẫn sinh kế hoạch conformant."
             )
         return _success_result(
             "No Observation",
@@ -898,10 +908,14 @@ def _belief_variants(matrix):
 def _sensorless_initial_belief_variants(matrix):
     """Belief-state cho No Observation.
 
-    Agent biết layout và goal, nhưng không biết chính xác trạng thái ban đầu
-    của các object bị che trên giao diện. Với radius 0, belief chỉ dùng đúng
-    các ô đang được blind_box che để không lệch khỏi phần UI đang minh họa.
+    Agent không nhận percept trong lúc chạy. Các ô '?' tạo belief-state ban đầu,
+    còn worker/box cũng được xem như thông tin có thể bị che trên giao diện.
+    Với radius 0, belief chỉ dùng đúng các vị trí object hiện có để không làm
+    lệch khỏi bài Sokoban thật.
     """
+    if not _matrix_has_unknown(matrix):
+        return [_actual_state_from_matrix(matrix)]
+
     clean = _replace_unknowns(matrix, " ")
     worker = None
     boxes = []
