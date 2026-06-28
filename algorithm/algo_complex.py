@@ -255,28 +255,17 @@ def and_or_search(
     """
     AND-OR Graph Search cho môi trường phức tạp.
 
-    Pseudocode:
-        function AND_OR_GRAPH_SEARCH(problem):
-            return OR_SEARCH(problem.initial_state, problem, [])
-
-        function OR_SEARCH(state, problem, path):
-            if state in problem.goal_test: return []
-            if depth > max_depth: return failure
-            if node limit or timeout reached: return failure
-            if state in path: return failure
-            for each action in problem.actions(state):
-                result_states = problem.results(state, action)
-                plan = AND_SEARCH(result_states, problem, path + [state])
-                if plan != failure: return [action, plan]
-            return failure
-
-        function AND_SEARCH(states, problem, path):
-            plans = empty mapping
-            for each s in states:
-                plan_s = OR_SEARCH(s, problem, path)
-                if plan_s == failure: return failure
-                plans[s] = plan_s
-            return plans
+    Ý tưởng:
+    - AND-OR dùng khi một action có thể dẫn tới nhiều outcome khác nhau.
+      OR-node là nơi agent được chọn action; AND-node là nơi mọi outcome của
+      action đó đều phải có kế hoạch xử lý tiếp.
+    - Nếu có một action mà tất cả outcome đều dẫn được tới goal, thuật toán
+      trả về một policy dạng cây thay vì một path tuyến tính.
+    - Trong Sokoban project này, AND-OR minh họa lập kế hoạch trong môi trường
+      không chắc chắn: agent không chỉ hỏi "đi bước nào tốt nhất", mà còn hỏi
+      "nếu kết quả rẽ sang trường hợp khác thì vẫn còn kế hoạch không".
+    - Các giới hạn depth/node/timeout giúp GUI không bị treo vì cây AND-OR có
+      thể phình rất nhanh.
     """
     print("Processing AND-OR GRAPH SEARCH......")
 
@@ -330,13 +319,14 @@ def and_or_search(
         if guard_exceeded(depth):
             return "failure"
 
-        # if state ∈ problem.goal_test: return []
+        # Goal trong OR-node nghĩa là nhánh hiện tại không cần action thêm.
         if state.isComplete():
             return []
 
         key = state_key(state)
 
-        # if state ∈ path: return failure (tránh lặp)
+        # Tránh vòng lặp trong policy: một state xuất hiện lại trên cùng path
+        # sẽ khiến AND-OR tự gọi mãi.
         if key in path:
             return "failure"
 
@@ -347,9 +337,9 @@ def and_or_search(
         if failed_cache.get(key, -1) >= remaining_depth:
             return "failure"
 
-        # for each action in problem.actions(state)
+        # OR-node thử từng action; action nào có mọi outcome xử lý được thì thắng.
         for action in problem["actions"](state):
-            # result_states = problem.results(state, action)
+            # Một action có thể tạo nhiều outcome trong môi trường không chắc chắn.
             result_states = problem["results"](state, action)
             if not result_states:
                 continue
@@ -358,7 +348,7 @@ def and_or_search(
             if guard_exceeded(depth):
                 return "failure"
 
-            # plan = AND_SEARCH(result_states, problem, path + [state])
+            # AND-node kiểm tra toàn bộ outcome của action này.
             plan = and_search(
                 result_states,
                 problem,
@@ -381,12 +371,11 @@ def and_or_search(
         if guard_exceeded(depth):
             return "failure"
 
-        # plans = empty mapping
+        # Mỗi outcome cần một sub-plan riêng; thiếu một sub-plan là action fail.
         plans = {}
 
-        # for each s in states
         for s in states:
-            # plan_s = OR_SEARCH(s, problem, path)
+            # Quay lại OR-node để agent chọn action tiếp theo cho outcome đó.
             plan_s = or_search(s, problem, path, depth)
             if plan_s == "failure":
                 return "failure"
@@ -810,6 +799,17 @@ def partially_observable_search(game, observe_radius=1):
 
 
 def _conformant_plan_from_belief(start_states, max_expansions):
+    """Tìm một plan duy nhất chạy đúng cho toàn bộ belief-state.
+
+    Đây là phần lõi của No Observation/conformant planning:
+    - start_states là danh sách các world có thể xảy ra.
+    - Một action chỉ được chấp nhận nếu nó hợp lệ ở tất cả world.
+    - Goal đạt khi mọi world trong belief đều hoàn thành Sokoban.
+
+    Priority dùng dạng A* trên belief:
+        f(B) = g(B) + h(B)
+    Trong đó h(B) lấy worst-case heuristic của các world trong belief.
+    """
     node_generated = len(start_states)
     belief_expansions = 0
     start_key = _belief_key(start_states)
@@ -820,6 +820,7 @@ def _conformant_plan_from_belief(start_states, max_expansions):
     heapq.heappush(
         open_list,
         (
+            # f = g + h; g ban đầu bằng 0 nên priority là h(B0).
             _belief_heuristic(start_states),
             0,
             counter,
@@ -840,6 +841,9 @@ def _conformant_plan_from_belief(start_states, max_expansions):
             return path, node_generated, belief_expansions
 
         for action in _ordered_belief_actions(belief_states):
+            # require_all=True nghĩa là action phải sống sót trong mọi world.
+            # Nếu chỉ một world không đi được thì action này không phải
+            # conformant action an toàn.
             next_states = _belief_successors(
                 belief_states,
                 action,
@@ -875,6 +879,16 @@ def _conformant_plan_from_belief(start_states, max_expansions):
 
 
 def _belief_variants(matrix):
+    """Sinh các world khả dĩ từ các ô '?'.
+
+    Mỗi '?' được tách thành 2 khả năng:
+    - "#" : ô đó thật ra là tường;
+    - " " : ô đó thật ra là sàn.
+
+    Ví dụ có 3 ô '?' thì tối đa 2^3 = 8 world. Để tránh nổ tổ hợp,
+    chỉ xét MAX_UNKNOWN_CELLS ô '?' đầu tiên. Sau khi tạo world, mọi '?'
+    còn lại được thay bằng sàn để replay không kẹt vì ký hiệu ẩn.
+    """
     unknowns = [
         (r, c)
         for r, row in enumerate(matrix)
@@ -914,6 +928,7 @@ def _sensorless_initial_belief_variants(matrix):
     lệch khỏi bài Sokoban thật.
     """
     if not _matrix_has_unknown(matrix):
+        # Không có thông tin ẩn thì B0 chỉ gồm map thật duy nhất.
         return [_actual_state_from_matrix(matrix)]
 
     clean = _replace_unknowns(matrix, " ")
@@ -936,6 +951,8 @@ def _sensorless_initial_belief_variants(matrix):
     base = copy.deepcopy(clean)
     hidden_positions = [worker] + boxes
     for row, col in hidden_positions:
+        # Xóa worker/box khỏi base để lát nữa đặt lại chúng vào từng world.
+        # Nếu vị trí đó vốn là dock thì giữ "." thay vì biến thành sàn.
         base[row][col] = "." if (row, col) in docks else " "
 
     candidates = _sensorless_candidate_cells(base, hidden_positions)
@@ -947,6 +964,9 @@ def _sensorless_initial_belief_variants(matrix):
             return
 
         world = copy.deepcopy(base)
+        # Một world = một giả thuyết đầy đủ về worker và toàn bộ box.
+        # Các thuật toán phía sau không xử lý "xác suất"; chúng chỉ cần biết
+        # action nào an toàn với mọi world trong danh sách.
         world[worker_pos[0]][worker_pos[1]] = "@"
         for box_pos in box_positions:
             symbol = "*" if box_pos in docks else "$"
@@ -961,6 +981,9 @@ def _sensorless_initial_belief_variants(matrix):
 
     add_world(worker, tuple(boxes))
 
+    # Với SENSORLESS_OBJECT_RADIUS hiện tại bằng 0, candidates thường chỉ gồm
+    # vị trí object thật. Nếu tăng radius, worker/box có thể được thử ở các ô
+    # lân cận để mô phỏng trạng thái ban đầu bị che mạnh hơn.
     for worker_pos in candidates:
         if len(worlds) >= MAX_SENSORLESS_WORLDS:
             break
@@ -986,6 +1009,9 @@ def _sensorless_safe_layout_belief_variants(matrix):
     reachable = _layout_reachable_cells(base)
     candidate_cells = []
 
+    # Chỉ chọn các ô sàn không reachable từ worker. Nếu biến những ô này thành
+    # wall/floor trong các world, plan chính ít bị ảnh hưởng nhưng vẫn tạo được
+    # belief-state nhiều world để minh họa sensorless planning.
     for row, cells in enumerate(base):
         for col, value in enumerate(cells):
             if value != " ":
@@ -1011,6 +1037,12 @@ def _sensorless_safe_layout_belief_variants(matrix):
 
 
 def _layout_reachable_cells(matrix):
+    """Tìm vùng layout có thể đi tới nếu bỏ qua box logic.
+
+    Hàm này dùng cho fallback của NoObs: những ô không nằm trong vùng reachable
+    là nơi an toàn hơn để tạo uncertainty layout vì chúng không nằm trên đường
+    di chuyển chính của worker.
+    """
     worker = None
 
     for row, cells in enumerate(matrix):
@@ -1045,6 +1077,12 @@ def _layout_reachable_cells(matrix):
 
 
 def _sensorless_candidate_cells(base, hidden_positions):
+    """Tạo danh sách ô ứng viên cho worker/box bị che.
+
+    hidden_positions gồm vị trí thật của worker và box. Với radius 0, ứng viên
+    chính là các vị trí đó. Nếu radius > 0, ta thêm các ô sàn/dock xung quanh
+    để tạo thêm world giả thuyết.
+    """
     candidates = set(hidden_positions)
 
     for center_row, center_col in hidden_positions:
@@ -1069,6 +1107,11 @@ def _sensorless_candidate_cells(base, hidden_positions):
 
 
 def _limited_box_position_sets(candidates, box_count, worker_pos):
+    """Sinh các tổ hợp vị trí box nhưng giới hạn số world.
+
+    Không cho box trùng worker_pos. Hàm này chỉ sinh đủ số tổ hợp cần thiết
+    tới MAX_SENSORLESS_WORLDS để tránh số world tăng quá nhanh.
+    """
     available = [pos for pos in candidates if pos != worker_pos]
 
     if box_count <= 0:
@@ -1093,10 +1136,20 @@ def _limited_box_position_sets(candidates, box_count, worker_pos):
 
 
 def _belief_key(states):
+    """Khóa định danh cho cả belief-state.
+
+    Belief là một tập world, nên key cần độc lập với thứ tự world. Vì vậy ta
+    sort state_key của từng world rồi gom thành tuple.
+    """
     return tuple(sorted(state_key(state) for state in states))
 
 
 def _dedupe_belief_states(states):
+    """Loại các world trùng nhau sau khi áp dụng action.
+
+    Nhiều world khác nhau có thể hội tụ về cùng một matrix sau một bước.
+    Dedupe giúp belief nhỏ lại và giảm chi phí tìm kiếm.
+    """
     result = []
     seen = set()
 
@@ -1111,6 +1164,16 @@ def _dedupe_belief_states(states):
 
 
 def _belief_successors(states, action, require_all):
+    """Áp dụng một action lên toàn bộ belief.
+
+    require_all=True:
+        dùng cho NoObs/conformant. Nếu action fail ở bất kỳ world nào,
+        toàn bộ successor bị loại vì agent không có percept để sửa sai.
+
+    require_all=False:
+        dùng cho PartialObs. Action có thể fail ở một số world giả thuyết;
+        sau khi quan sát percept thật, các world không khớp sẽ bị loại.
+    """
     next_states = []
 
     for state in states:
@@ -1128,6 +1191,8 @@ def _belief_heuristic(states):
     if not states:
         return 0
     # No Observation phải an toàn với tình huống xấu nhất nên dùng max.
+    # Nếu một world còn rất xa goal, plan chung vẫn chưa an toàn, vì vậy h(B)
+    # lấy max thay vì average.
     return max(heuristic(state) for state in states)
 
 
@@ -1155,6 +1220,8 @@ def _ordered_belief_actions(states, require_all=True):
             if child is None:
                 failed += 1
                 if require_all:
+                    # Conformant planning không được phép dùng action fail
+                    # trong bất kỳ world nào.
                     break
                 continue
             total += heuristic(child)
@@ -1171,6 +1238,8 @@ def _ordered_belief_actions(states, require_all=True):
         # Partial observation thích action vừa tiến tới goal vừa có khả năng
         # tạo percept khác nhau để giảm uncertainty.
         info_bonus = 0 if require_all else len(observations)
+        # require_all=False cho phép fail ở vài world, nhưng vẫn phạt để không
+        # chọn action quá mạo hiểm nếu có lựa chọn khác tương đương.
         failure_penalty = failed / max(len(states), 1)
         scores.append((avg_h + failure_penalty - 0.25 * info_bonus, action))
 
@@ -1179,6 +1248,13 @@ def _ordered_belief_actions(states, require_all=True):
 
 
 def _choose_partial_exploration_action(belief_states, real_state, observe_radius):
+    """Chọn action khám phá cho Partial Observation.
+
+    Khi chưa có conformant plan rõ ràng, agent chọn action vừa hợp lệ trên
+    real_state vừa có khả năng chia belief thành nhiều lớp percept khác nhau.
+    Càng nhiều observation_classes thì càng giảm uncertainty nên score được
+    trừ bớt.
+    """
     candidates = []
 
     for action in _ordered_belief_actions(belief_states, require_all=False):
@@ -1214,11 +1290,22 @@ def _choose_partial_exploration_action(belief_states, real_state, observe_radius
 
 
 def _filter_by_real_observation(states, real_state, radius):
+    """Lọc belief bằng percept thật quanh worker.
+
+    Sau khi agent di chuyển, nó quan sát vùng cục bộ quanh worker trong
+    real_state. World nào tạo ra local observation khác percept thật sẽ bị loại.
+    """
     observed = _local_observation(real_state, radius)
     return [state for state in states if _local_observation(state, radius) == observed]
 
 
 def _local_observation(state, radius):
+    """Mã hóa percept cục bộ quanh worker.
+
+    Kết quả là tuple các phần tử (dr, dc, value), trong đó dr/dc là tọa độ
+    tương đối so với worker. Dùng tọa độ tương đối để cùng một mẫu quan sát ở
+    hai vị trí khác nhau vẫn được so sánh theo hình dạng local view.
+    """
     worker = state.workerPosition()
     if worker is None:
         return ()
@@ -1246,16 +1333,15 @@ def backtracking_search(game, max_nodes=MAX_PATH_NODES, max_depth=350):
     """
     Backtracking trên không gian trạng thái Sokoban.
 
-    Pseudocode:
-        function BACKTRACK(state):
-            if state is goal then return path
-            mark state as visited
-            for each action in ACTIONS(state) do
-                child ← RESULT(state, action)
-                if child not visited and not deadlock then
-                    result ← BACKTRACK(child)
-                    if result != failure then return result
-            return failure
+    Ý tưởng:
+    - Backtracking thử từng action hợp lệ theo chiều sâu. Nếu nhánh hiện tại
+      không dẫn tới lời giải, thuật toán quay lui và thử action kế tiếp.
+    - visited dùng để tránh lặp lại cùng một matrix; deadlock được lọc sớm để
+      không tốn thời gian đi sâu vào trạng thái chắc chắn thất bại.
+    - Khác BFS/A*, Backtracking không ưu tiên heuristic mạnh; nó phù hợp để
+      minh họa cơ chế thử-sai-quay-lui trong không gian trạng thái.
+    - max_nodes và max_depth là phanh an toàn vì Sokoban có thể tạo ra rất
+      nhiều nhánh trước khi tìm được lời giải.
     """
     print("Processing BACKTRACKING SEARCH......")
 
@@ -1352,18 +1438,16 @@ def min_conflict_search(game, max_steps=1000):
     """
     Min-Conflicts CSP.
 
-    Pseudocode:
-        function MIN-CONFLICTS(csp, max_steps) returns a solution or failure
-        inputs: csp, a constraint satisfaction problem
-        max_steps, the number of steps allowed before giving up
-
-        current ← an initial complete assignment for csp
-        for i = 1 to max_steps do
-            if current is a solution for csp then return current
-            var ← a randomly chosen conflicted variable from csp.VARIABLES
-            value ← the value v for var that minimizes CONFLICTS(var, v, current, csp)
-            set var = value in current
-        return failure
+    Ý tưởng:
+    - Biến CSP là box, miền giá trị là các dock mà box có thể được gán tới.
+    - Thuật toán bắt đầu bằng một assignment đầy đủ nhưng có thể sai, sau đó
+      lặp lại việc chọn một biến đang xung đột và đổi nó sang giá trị gây ít
+      xung đột nhất.
+    - Khi assignment box-dock đã nhất quán, project dùng assignment đó để
+      hướng dẫn path search thật trên map Sokoban.
+    - Min-Conflicts không duyệt toàn bộ cây như Backtracking; nó sửa dần một
+      lời gán hiện tại, nên nhanh nhưng có thể không tìm được assignment tốt
+      trong giới hạn max_steps.
     """
     print("Processing MIN-CONFLICTS CSP SEARCH......")
 
@@ -1385,15 +1469,15 @@ def min_conflict_search(game, max_steps=1000):
         reason = "Có ít nhất một biến CSP có miền giá trị rỗng."
         return _failure_result("Min-Conflicts", reason, real_game, 0, start_time)
 
-    # current ← an initial complete assignment for csp
+    # Khởi tạo một assignment đầy đủ ngẫu nhiên: mỗi box tạm chọn một dock.
     current = {var: rng.choice(csp["domains"][var]) for var in variables}
     conflict_steps = 0
 
-    # for i = 1 to max_steps do
+    # Mỗi vòng sửa một biến đang gây xung đột cho tới khi assignment nhất quán.
     for i in range(1, max_steps + 1):
         conflict_steps = i
 
-        # if current is a solution for csp then return current
+        # Khi assignment hết xung đột, dùng nó để dẫn hướng tìm path Sokoban thật.
         if _is_csp_solution(csp, current):
             solution, path_nodes = _constraint_guided_search(
                 real_game,
@@ -1428,20 +1512,20 @@ def min_conflict_search(game, max_steps=1000):
             reason = "Min-Conflicts có assignment hợp lệ nhưng path search không tìm được lời giải Sokoban."
             return _failure_result("Min-Conflicts", reason, real_game, total_work, start_time)
 
-        # var ← a randomly chosen conflicted variable from csp.VARIABLES
+        # Chọn ngẫu nhiên một box đang xung đột để tránh sửa lặp mãi một biến.
         conflicted = _conflicted_variables(csp, current)
         var = rng.choice(conflicted)
 
-        # value ← the value v for var that minimizes CONFLICTS(var, v, current, csp)
+        # Đổi box đó sang dock gây ít xung đột nhất với assignment hiện tại.
         value = min(
             csp["domains"][var],
             key=lambda v: _count_conflicts(csp, var, v, current),
         )
 
-        # set var = value in current
+        # Cập nhật assignment rồi lặp lại kiểm tra.
         current[var] = value
 
-    # return failure
+    # Hết số lần sửa mà vẫn còn xung đột thì xem như thất bại.
     reason = "Min-Conflicts đạt max_steps nhưng chưa có assignment CSP nhất quán."
     print("Min-Conflicts reached max_steps without a consistent assignment.")
     return _failure_result(
@@ -1597,23 +1681,22 @@ def _ac3(csp):
     """
     AC-3 algorithm — returns the CSP, possibly with reduced domains.
 
-    Pseudocode:
-        function AC-3(csp) returns the CSP, possibly with reduced domains
-        inputs: csp, a binary CSP with variables {X1, X2, ..., Xn}
-        local variables: queue, a queue of arcs, initially all the arcs in csp
-
-        while queue is not empty do
-            (Xi, Xj) ← REMOVE-FIRST(queue)
-            if RM-INCONSISTENT-VALUES(Xi, Xj) then
-                for each Xk in NEIGHBORS[Xi] do
-                    add (Xk, Xi) to queue
+    Ý tưởng:
+    - AC-3 không trực tiếp tìm đường đi. Nó làm sạch miền giá trị của CSP trước
+      bằng cách đảm bảo từng cặp biến còn "arc-consistent".
+    - Trong bài này, biến là box và giá trị là dock. Ràng buộc chính là hai
+      box không nên chọn cùng một dock.
+    - Mỗi arc (Xi, Xj) hỏi: với mỗi giá trị của Xi, còn giá trị nào của Xj
+      tương thích hay không? Nếu không còn, giá trị đó bị xóa khỏi miền của Xi.
+    - Khi miền bị rút gọn, các arc liên quan được kiểm tra lại vì việc xóa một
+      giá trị có thể làm biến khác mất hỗ trợ.
     """
     variables = csp["variables"]
 
     # NEIGHBORS[Xi] — every variable that shares a constraint with Xi
     neighbors = {xi: [xj for xj in variables if xj != xi] for xi in variables}
 
-    # Queue ← all arcs in csp
+    # Queue ban đầu chứa mọi cặp biến có ràng buộc với nhau.
     queue = deque()
     for xi in variables:
         for xj in neighbors[xi]:
@@ -1622,15 +1705,16 @@ def _ac3(csp):
     arc_checks = 0
 
     while queue:
-        xi, xj = queue.popleft()               # REMOVE-FIRST(queue)
+        xi, xj = queue.popleft()
         arc_checks += 1
 
-        if _revise(csp, xi, xj):                # RM-INCONSISTENT-VALUES
+        if _revise(csp, xi, xj):
             if not csp["domains"][xi]:
                 return False, arc_checks
 
-            for xk in neighbors[xi]:            # for each Xk in NEIGHBORS[Xi]
-                queue.append((xk, xi))           # add (Xk, Xi) to queue
+            for xk in neighbors[xi]:
+                # Xi vừa mất giá trị nên các biến liên quan cần được kiểm tra lại.
+                queue.append((xk, xi))
 
     return True, arc_checks
 
@@ -1639,12 +1723,15 @@ def _revise(csp, xi, xj):
     """
     RM-INCONSISTENT-VALUES(Xi, Xj) — returns true iff we remove a value.
 
-    Pseudocode:
-        removed ← false
-        for each x in DOMAIN[Xi] do
-            if no value y in DOMAIN[Xj] allows (x,y) to satisfy constraint(Xi, Xj)
-            then delete x from DOMAIN[Xi]; removed ← true
-        return removed
+    Ý tưởng:
+    - _revise là bước nhỏ nhất của AC-3: kiểm tra miền của một biến Xi dưới
+      ràng buộc với biến Xj.
+    - Một giá trị x của Xi được giữ lại nếu vẫn tồn tại ít nhất một giá trị y
+      của Xj sao cho cặp (x, y) không vi phạm constraint.
+    - Với constraint "hai box không dùng cùng một dock", x bị xóa nếu mọi y
+      còn lại của Xj đều trùng với x.
+    - Hàm trả True khi có x bị xóa, để AC-3 biết cần đưa các arc liên quan
+      quay lại queue kiểm tra tiếp.
     """
     removed = False
 

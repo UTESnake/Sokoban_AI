@@ -389,13 +389,14 @@ def _progress_bonus(parent, child):
 def _max_value_minimax(state, depth):
     """MAX player's turn.
 
-    Pseudocode (isMaximizingPlayer = true):
-        if depth == 0 or terminal: return evaluate(node)
-        bestValue = -∞
-        for each child in generateMoves(node):
-            value = minimax(child, depth - 1, false)
-            bestValue = max(bestValue, value)
-        return bestValue
+    Ý tưởng:
+    - Đây là lượt của người chơi Sokoban (MAX), nên hàm cố chọn nước đi đem
+      lại utility lớn nhất.
+    - Mỗi action hợp lệ tạo ra một state con của MAX, sau đó chuyển quyền cho
+      MIN/E đánh giá phản ứng bất lợi nhất.
+    - Khi depth hết hoặc state đã kết thúc, không mở rộng tiếp mà chấm điểm
+      bằng _utility(...).
+    - best_move là action có giá trị cao nhất sau khi đã xét phản ứng của E.
     """
     _STATS["game_nodes"] += 1
 
@@ -429,13 +430,13 @@ def _max_value_minimax(state, depth):
 def _min_value_minimax(state, depth):
     """MIN player's turn.
 
-    Pseudocode (isMaximizingPlayer = false):
-        if depth == 0 or terminal: return evaluate(node)
-        bestValue = +∞
-        for each child in generateMoves(node):
-            value = minimax(child, depth - 1, true)
-            bestValue = min(bestValue, value)
-        return bestValue
+    Ý tưởng:
+    - Đây là lượt của đối thủ E (MIN), nên hàm giả định E sẽ chọn nước làm
+      utility của MAX nhỏ nhất.
+    - Các action của E được sắp theo mức nguy hiểm: gần worker, chặn box/dock,
+      hoặc tạo thế gọng kìm.
+    - Sau khi E đi, quyền quay lại MAX để xem người chơi có thể phục hồi không.
+    - Giá trị trả về là tình huống xấu nhất mà MAX phải chuẩn bị.
     """
     _STATS["game_nodes"] += 1
 
@@ -470,14 +471,13 @@ def _min_value_minimax(state, depth):
 def _max_value_alpha_beta(state, depth, alpha, beta):
     """MAX player's turn.
 
-    Pseudocode (maximizingPlayer = true):
-        if depth == 0 or terminal: return evaluate(node)
-        value := -∞
-        for each child in generateMoves(node):
-            value := max(value, alphaBeta(child, depth-1, alpha, beta, false))
-            alpha := max(alpha, value)
-            if alpha >= beta: break   // Beta cut-off
-        return value
+    Ý tưởng:
+    - Giống lượt MAX trong Minimax: chọn action có utility cao nhất.
+    - alpha lưu giá trị tốt nhất MAX đã bảo đảm được trên đường xét hiện tại.
+    - Nếu alpha đã lớn hơn hoặc bằng beta, các nhánh còn lại không thể làm MIN
+      chọn kết quả tốt hơn cho MAX, nên có thể bỏ qua để giảm số node.
+    - Kết quả quyết định thường giống Minimax, nhưng chạy nhanh hơn nhờ cắt
+      nhánh không cần thiết.
     """
     _STATS["game_nodes"] += 1
 
@@ -516,14 +516,13 @@ def _max_value_alpha_beta(state, depth, alpha, beta):
 def _min_value_alpha_beta(state, depth, alpha, beta):
     """MIN player's turn.
 
-    Pseudocode (maximizingPlayer = false):
-        if depth == 0 or terminal: return evaluate(node)
-        value := +∞
-        for each child in generateMoves(node):
-            value := min(value, alphaBeta(child, depth-1, alpha, beta, true))
-            beta := min(beta, value)
-            if beta <= alpha: break   // Alpha cut-off
-        return value
+    Ý tưởng:
+    - Đây là lượt E nên hàm chọn phản ứng làm điểm của MAX thấp nhất.
+    - beta lưu giá trị thấp nhất MIN đã có thể ép MAX nhận.
+    - Nếu beta nhỏ hơn hoặc bằng alpha, MAX ở tầng trên đã có lựa chọn tốt hơn,
+      nên các phản ứng còn lại của MIN không cần xét tiếp.
+    - Bộ đếm pruned_nodes tăng khi có nhánh bị bỏ qua, giúp log so sánh với
+      Minimax thường.
     """
     _STATS["game_nodes"] += 1
 
@@ -684,6 +683,12 @@ def _utility(state, risk_weight=1.0):
 
 
 def _opponent_threat_score(state):
+    """Ước lượng mức nguy hiểm của E đối với MAX.
+
+    Điểm này được đưa vào utility của Minimax/Alpha-Beta/Expectimax.
+    MAX sẽ tránh các trạng thái có threat cao, vì threat cao nghĩa là E đang
+    gần worker/box/dock hoặc đang tạo thế gọng kìm.
+    """
     matrix = state.getMatrix()
     competitor = _competitor_position(matrix)
     worker = state.workerPosition()
@@ -693,8 +698,10 @@ def _opponent_threat_score(state):
 
     score = 0
 
-    # E gần người chơi.
+    # E gần người chơi. Càng gần, MAX càng dễ bị chặn đường.
     score += max(0, 7 - _manhattan(competitor, worker)) * 3
+    # Bổ sung threat gọng kìm: E không chỉ gần, mà còn ép worker vào phía bị
+    # chặn bởi tường/thùng/hành lang hẹp.
     score += _pincer_pressure_score(state, competitor)
 
     # E gần box, dock, vị trí đứng đẩy box.
@@ -755,6 +762,7 @@ def _ordered_opponent_actions(state):
         next_position = position[0] + dy, position[1] + dx
 
         if _opponent_can_move_to(state, next_position):
+            # MIN/E chọn các action làm MAX bất lợi nhất, nên sort giảm dần.
             score = _opponent_action_score(state, next_position)
             actions.append((score, action))
 
@@ -946,6 +954,12 @@ def _push_stances(state, box):
 
 
 def _opponent_action_score(state, next_position):
+    """Chấm điểm một nước đi của E.
+
+    Đây là bản "một bước nhìn trước" của threat score:
+    giả sử E đi tới next_position, vị trí đó nguy hiểm đến mức nào?
+    Điểm càng cao thì MIN càng muốn chọn.
+    """
     worker = state.workerPosition()
     boxes = state.boxPosition()
     docks = state.dockPosition()
@@ -954,6 +968,8 @@ def _opponent_action_score(state, next_position):
 
     if worker is not None:
         score += max(0, 7 - _manhattan(next_position, worker)) * 3
+        # Ưu tiên các nước biến E thành một hàm kìm sát worker hoặc tiến gần
+        # tới vị trí có thể kẹp worker ở lượt sau.
         score += _pincer_pressure_score(state, next_position)
 
     for box in boxes:
@@ -969,6 +985,19 @@ def _opponent_action_score(state, next_position):
 
 
 def _pincer_pressure_score(state, competitor_position):
+    """Tính điểm thế gọng kìm cho E.
+
+    Có hai tình huống:
+    1. E đã đứng sát worker:
+       - Xem ô đối diện worker là "hàm kìm" còn lại.
+       - Nếu ô đối diện là tường/thùng/E/outside thì worker bị kẹp mạnh.
+       - Nếu số lối thoát còn lại ít thì điểm tăng.
+    2. E chưa sát worker:
+       - Chấm điểm theo khoảng cách tới các ô kề worker có tiềm năng kẹp.
+
+    Hàm này không di chuyển E; nó chỉ trả điểm để Minimax/Alpha-Beta/Expectimax
+    ưu tiên hoặc né các trạng thái liên quan đến gọng kìm.
+    """
     worker = state.workerPosition()
     if worker is None:
         return 0
@@ -977,6 +1006,8 @@ def _pincer_pressure_score(state, competitor_position):
     score = max(0, 6 - distance) * 2
 
     if distance == 1:
+        # direction là hướng từ worker tới E. opposite là ô phía sau worker.
+        # Nếu opposite bị chặn, E và vật cản tạo thành hai hàm kìm.
         direction = (
             competitor_position[0] - worker[0],
             competitor_position[1] - worker[1],
@@ -991,9 +1022,13 @@ def _pincer_pressure_score(state, competitor_position):
         elif _walkable_neighbor_count(state, opposite) <= 2:
             score += 8
 
+        # E chiếm một ô kề worker; blocked_by giả định ô đó không còn là lối
+        # thoát của worker. Càng ít escape, thế kẹp càng mạnh.
         exits = _worker_escape_count(state, worker, blocked_by=competitor_position)
         score += max(0, 4 - exits) * 9
     else:
+        # Nếu chưa sát worker, E vẫn được thưởng khi tiến gần các ô có khả năng
+        # tạo gọng kìm ở lượt sau.
         pincer_targets = _pincer_targets_around_worker(state, worker)
         if pincer_targets:
             nearest = min(
@@ -1006,6 +1041,7 @@ def _pincer_pressure_score(state, competitor_position):
 
 
 def _pincer_targets_around_worker(state, worker):
+    """Tìm các ô kề worker có tiềm năng làm hàm kìm."""
     targets = []
     matrix = state.getMatrix()
 
@@ -1015,6 +1051,8 @@ def _pincer_targets_around_worker(state, worker):
             continue
 
         opposite = (worker[0] - dy, worker[1] - dx)
+        # Target tốt nếu đứng ở đó sẽ ép worker về phía vật cản, hoặc bản thân
+        # target nằm ở vùng hẹp khiến worker khó vòng tránh.
         if _pincer_blocker(state, opposite) or _walkable_neighbor_count(state, target) <= 2:
             targets.append(target)
 
@@ -1022,10 +1060,12 @@ def _pincer_targets_around_worker(state, worker):
 
 
 def _pincer_blocker(state, position):
+    """Một ô tạo thành hàm kìm nếu worker không thể đi xuyên qua nó."""
     return _matrix_value(state.getMatrix(), position) in {None, "#", "$", "*", "E"}
 
 
 def _worker_escape_count(state, worker, blocked_by=None):
+    """Đếm số lối thoát trực tiếp của worker khi E chiếm blocked_by."""
     count = 0
     matrix = state.getMatrix()
 

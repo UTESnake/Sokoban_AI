@@ -1385,6 +1385,15 @@ class SokobanApp:
         self.solution_job = self.root.after(ANIMATION_STEP_DELAY, self._play_next_solution_step)
 
     def _movement_decision_context(self, step, matrix):
+        """Tính dữ liệu g/h/f để giải thích một bước replay trong log.
+
+        Lưu ý: đây là phần giải thích UI, không thay đổi thuật toán đã chạy.
+        Ta lấy state hiện tại, thử tất cả action hợp lệ bằng validMove/apply_step,
+        rồi tính:
+            g(n) = số bước nếu chọn action này,
+            h(n) = box_toDock + worker_toBox,
+            f(n) = g(n) + h(n).
+        """
         state = self._solve_state_from_matrix(matrix)
         g_next = self.solution_index + 1
         h_before = self._state_h(state)
@@ -1423,6 +1432,7 @@ class SokobanApp:
         }
 
     def _log_movement_decision(self, step, context):
+        """Ghi một dòng log giải thích vì sao action hiện tại đáng chọn."""
         chosen = context.get("chosen") if context else None
         candidates = context.get("candidates", []) if context else []
         step_no = self.solution_index
@@ -1453,6 +1463,14 @@ class SokobanApp:
         self._log(f"{detail} {reason}")
 
     def _movement_reason(self, algo, step, chosen, best_f, rank_f, rank_h, delta_h):
+        """Sinh câu giải thích phù hợp với từng nhóm thuật toán.
+
+        Cùng một action có thể được chọn vì lý do khác nhau:
+        - A* quan tâm f(n);
+        - Greedy/cục bộ quan tâm h(n);
+        - BFS/DFS/IDS quan tâm thứ tự duyệt hoặc độ sâu;
+        - adversarial còn phải tránh MIN/E.
+        """
         delta_text = self._fmt_delta(delta_h)
         if algo == "Astar":
             return (
@@ -1512,6 +1530,12 @@ class SokobanApp:
         )
 
     def _solve_state_from_matrix(self, matrix):
+        """Tạo Solve state từ matrix đang hiển thị để tính heuristic/log.
+
+        Game và Solve dùng hai class khác nhau. Khi dùng Solve để tính h(n),
+        ta cần gắn lại dockListPosition từ Game để các dock bị worker/box che
+        vẫn được hiểu đúng.
+        """
         state = Solve(copy.deepcopy(matrix))
         if hasattr(self, "dockList"):
             state.dockListPosition = list(self.dockList)
@@ -1681,6 +1705,13 @@ class SokobanApp:
                         surface.blit(blind_tile, (col * 64, row * 64))
 
     def _prepare_competitor_animation(self, matrix, solution):
+        """Chuẩn bị trạng thái animation cho con đỏ E.
+
+        Solver adversarial chỉ trả path của MAX để GUI replay. Con đỏ trong
+        animation sẽ được điều khiển riêng bằng chiến thuật pincer/chase/block,
+        nhưng vẫn tôn trọng các ô MAX sắp bắt buộc đi qua để không làm hỏng
+        replay solution.
+        """
         self.competitor_position = None
         self.competitor_previous_position = None
         self.competitor_under_tile = " "
@@ -1728,6 +1759,13 @@ class SokobanApp:
         self._log(strategy_names[self.selected_algo.get()])
 
     def _move_competitor(self):
+        """Di chuyển con đỏ một bước sau lượt của worker.
+
+        Thứ tự chọn hành vi:
+        1. Nếu E đang đứng vào ô MAX sắp cần dùng, E phải né ra.
+        2. Nếu không, E chọn target bằng _choose_competitor_target(...).
+        3. E đi một bước ngắn nhất theo BFS tới target đó.
+        """
         if self.competitor_position is None:
             return
 
@@ -1772,6 +1810,16 @@ class SokobanApp:
             self._log(behavior_labels[behavior])
 
     def _choose_competitor_target(self, worker, protected_cells):
+        """Chọn mục tiêu chiến thuật cho E.
+
+        protected_cells là các ô MAX sắp cần bước vào/đẩy box qua. E không được
+        chọn các ô này làm target, nếu không animation sẽ tự khóa lời giải.
+
+        Ưu tiên mới là "gọng kìm": E tìm cách đứng sát worker ở phía làm giảm
+        đường thoát, ví dụ ép worker vào tường, thùng, dock hẹp hoặc hành lang.
+        Nếu không có thế kẹp tốt, E quay lại các chiến thuật cũ:
+        đuổi gần, chặn vị trí đẩy box, canh dock/hành lang.
+        """
         matrix = self.gameSokoban.matrix
 
         # 1) Gọng kìm: ép MAX vào phía tường, thùng hoặc hành lang hẹp.
@@ -1831,6 +1879,12 @@ class SokobanApp:
         return None, "guard"
 
     def _select_pincer_target(self, worker, protected_cells):
+        """Tìm ô đứng sát worker để tạo thế gọng kìm.
+
+        Candidate chỉ là bốn ô kề worker. Mỗi candidate được chấm điểm bằng
+        _pincer_pressure_score(...), sau đó trừ thêm chi phí đường đi để E ưu
+        tiên thế kẹp vừa tốt vừa tới được nhanh.
+        """
         candidates = {
             (worker[0] + dy, worker[1] + dx)
             for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))
@@ -1859,6 +1913,15 @@ class SokobanApp:
         return choices[0][2]
 
     def _pincer_pressure_score(self, target, worker):
+        """Chấm điểm một target gọng kìm.
+
+        Ý tưởng:
+        - Nếu E đứng ở target sát worker, ô đối diện worker là "hàm kìm" còn lại.
+        - Nếu phía đối diện là tường/thùng/E/outside thì worker bị kẹp mạnh.
+        - Nếu số ô thoát còn lại ít, điểm càng cao.
+        - Nếu target cũng là ô đứng đẩy box quan trọng, cộng thêm điểm vì vừa
+          kẹp worker vừa phá kế hoạch Sokoban.
+        """
         matrix = self.gameSokoban.matrix
         direction = (target[0] - worker[0], target[1] - worker[1])
         opposite = (worker[0] - direction[0], worker[1] - direction[1])
@@ -1887,6 +1950,7 @@ class SokobanApp:
         return score
 
     def _worker_escape_cells(self, worker, blocked_by=None):
+        """Đếm các ô worker còn có thể thoát nếu E chiếm blocked_by."""
         escape_cells = set()
         matrix = self.gameSokoban.matrix
         for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
@@ -1899,6 +1963,11 @@ class SokobanApp:
         return escape_cells
 
     def _select_reachable_tactical_target(self, targets, protected_cells):
+        """Chọn target tốt nhất trong một tập mục tiêu chiến thuật.
+
+        Hàm này dùng cho block/guard cũ. Target phải reachable bằng BFS; điểm
+        chiến thuật càng cao và đường đi càng ngắn thì càng được ưu tiên.
+        """
         choices = []
         for target in targets:
             path = self._competitor_bfs_path(
@@ -1921,6 +1990,11 @@ class SokobanApp:
         return choices[0][2]
 
     def _competitor_bfs_path(self, start, targets, protected_cells):
+        """Tìm đường ngắn nhất cho E tới một trong các target.
+
+        BFS dùng cùng bộ lọc _competitor_cell_is_open để tránh tường, box,
+        worker và protected_cells. Trả về list vị trí từ start tới target.
+        """
         if not targets:
             return []
         if start in targets:
@@ -1949,6 +2023,7 @@ class SokobanApp:
 
     def _competitor_cell_is_open(
             self, position, protected_cells, allow_current=False):
+        """Kiểm tra E có được đứng vào ô này không."""
         if position in protected_cells:
             return False
         if allow_current and position == self.competitor_position:
@@ -1973,6 +2048,11 @@ class SokobanApp:
         }
 
     def _next_player_protected_cells(self):
+        """Dự đoán các ô MAX cần dùng trong vài bước sắp tới.
+
+        Đây là lớp an toàn cho animation: E có thể gây khó nhìn, nhưng không
+        được chiếm ô mà path replay sắp buộc worker/box đi qua.
+        """
         protected = set()
         lookahead_end = min(
             len(self.competitor_turn_requirements),
@@ -2000,6 +2080,11 @@ class SokobanApp:
         return protected
 
     def _competitor_tactical_score(self, position):
+        """Điểm chiến thuật tổng quát cho E ngoài thế gọng kìm.
+
+        Điểm cao khi position gần worker, gần box/dock, là ô đứng đẩy quan
+        trọng, hoặc nằm ở hành lang hẹp. Điểm này hỗ trợ các mode block/guard.
+        """
         matrix = self.gameSokoban.matrix
         worker = self.gameSokoban.getPosition()
         boxes = [
@@ -2040,6 +2125,11 @@ class SokobanApp:
         return score
 
     def _important_push_stances(self, boxes, docks):
+        """Tìm các ô worker cần đứng để đẩy box theo hướng hữu ích.
+
+        Nếu E chiếm một stance, worker không thể thực hiện cú đẩy tương ứng.
+        Các stance đẩy box vào dock được xem là đặc biệt quan trọng.
+        """
         positions = set()
         matrix = self.gameSokoban.matrix
         for box in boxes:

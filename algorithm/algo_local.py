@@ -70,35 +70,30 @@ def _make_failure_result(
 def simple_hill_climbing(game):
     """Simple Hill Climbing.
 
-    Pseudocode:
-        function Simple_Hill_Climbing(Start):
-        1. Current_State = Start
-           Tính giá trị đánh giá của Current_State
-        2. TRONG KHI (đúng):
-           a. Sinh lần lượt các trạng thái lân cận của Current_State
-           b. Với mỗi Next_State:
-              i. Tính Value(Next_State)
-              ii. NẾU Value(Next_State) > Value(Current_State):
-                  Current_State = Next_State
-                  Chuyển sang lần lặp tiếp theo
-           c. NẾU không có lân cận nào tốt hơn: Dừng (cực đại cục bộ)
-        3. TRẢ VỀ Current_State
+    Ý tưởng:
+    - Thuật toán luôn giữ một trạng thái hiện tại và nhìn các trạng thái lân
+      cận sinh ra từ một bước di chuyển hợp lệ.
+    - Nếu gặp lân cận có giá trị tốt hơn trạng thái hiện tại, nó chuyển ngay
+      sang lân cận đó và tiếp tục leo.
+    - Cách này đơn giản và nhanh, nhưng dễ kẹt ở cực trị cục bộ: một trạng
+      thái không có hàng xóm tốt hơn dù chưa phải lời giải.
+    - Trong Sokoban, điều đó thường xảy ra khi box đã bị đẩy vào vị trí khó
+      cải thiện hoặc heuristic tạm thời không nhìn thấy đường vòng cần thiết.
     """
     print("Processing SIMPLE HILL CLIMBING......")
     start_time = time.time()
     node_generated = 1
 
-    # 1. Khởi tạo Current_State = Start; tính Value(Current_State)
+    # Bắt đầu từ trạng thái ban đầu và xem nó là điểm đang đứng trên "đồi".
     current = copy.deepcopy(game)
     current_value = _value(current)
 
-    # 2. TRONG KHI (đúng)
+    # Lặp cho tới khi không còn hàng xóm nào cải thiện được giá trị hiện tại.
     while True:
-        # a. Sinh lần lượt các trạng thái lân cận của Current_State
+        # Xét từng nước đi hợp lệ như một hàng xóm của trạng thái hiện tại.
         moved = False
 
         for step in validMove(current):
-            # b.i. Tính Value(Next_State)
             neighbor = copy.deepcopy(current)
             apply_step(neighbor, step)
             node_generated += 1
@@ -106,18 +101,18 @@ def simple_hill_climbing(game):
             if isDeadlock(neighbor):
                 continue
 
-            # b.ii. NẾU Value(Next_State) > Value(Current_State)
+            # Gặp hàng xóm tốt hơn thì đi ngay theo hướng đó.
             if _value(neighbor) > current_value:
-                current = neighbor          # Current_State = Next_State
+                current = neighbor
                 current_value = _value(current)
                 moved = True
-                break                       # Chuyển sang lần lặp tiếp theo
+                break
 
-        # c. NẾU không có lân cận nào tốt hơn: Dừng (cực đại cục bộ)
+        # Không có hàng xóm tốt hơn nghĩa là đã kẹt ở cực trị cục bộ.
         if not moved:
             break
 
-    # 3. TRẢ VỀ Current_State
+    # Nếu trạng thái đang đứng là goal thì trả lời giải; nếu không báo kẹt.
     if current.isComplete():
         _print_solution("Simple Hill Climbing", start_time, node_generated, current.pathSolution)
         return current.pathSolution
@@ -137,25 +132,16 @@ def simple_hill_climbing(game):
 def beam_search(game, beam_width=50, seed=7, max_iterations=500):
     """Local Beam Search.
 
-    Pseudocode:
-        function Local_Beam_Search(k):
-        1. Current_State_set = {Sinh ngẫu nhiên k trạng thái từ Start}
-        2. Lặp tối đa max_iterations lần:
-           Neighbor_States = rỗng
-           2.1 SINH TRẠNG THÁI LÂN CẬN:
-               VỚI MỖI State trong Current_State_set:
-                   Sinh tất cả neighbor chưa có trong seen, thêm vào Neighbor_States
-           2.2 KIỂM TRA BẾ TẮC:
-               NẾU Neighbor_States = rỗng:
-                   TRẢ VỀ trạng thái tốt nhất trong Current_State_set
-           2.3 KIỂM TRA ĐÍCH:
-               VỚI MỖI Neighbor trong Neighbor_States:
-                   NẾU Neighbor == Goal: TRẢ VỀ Neighbor
-           2.4 LỰA CHỌN CHÙM:
-               Sắp xếp Neighbor_States theo h tốt dần
-               New_State_set = k trạng thái tốt nhất
-               NẾU New_State_set không cải thiện h tốt nhất: Dừng
-               Current_State_set = New_State_set
+    Ý tưởng:
+    - Thay vì chỉ leo từ một trạng thái như Hill Climbing, Beam Search giữ một
+      "chùm" gồm nhiều trạng thái tốt nhất tại mỗi vòng.
+    - Mỗi vòng, thuật toán mở rộng toàn bộ trạng thái trong chùm, lọc deadlock
+      và trạng thái đã thấy, rồi chọn lại beam_width trạng thái có heuristic
+      thấp nhất.
+    - Cách này giảm rủi ro kẹt ở một nhánh xấu vì nhiều hướng được giữ song
+      song, nhưng vẫn không đảm bảo tối ưu do các nhánh ngoài chùm bị loại.
+    - Trong Sokoban, beam_width càng lớn thì khả năng giữ được đường vòng tốt
+      càng cao, đổi lại số node sinh ra cũng tăng.
     """
     start_time = time.time()
     rng = random.Random(seed)
@@ -163,7 +149,7 @@ def beam_search(game, beam_width=50, seed=7, max_iterations=500):
 
     print("Processing LOCAL BEAM SEARCH......")
 
-    # 1. Khởi tạo: Current_State_set = {k trạng thái ngẫu nhiên từ Start}
+    # Tạo chùm ban đầu bằng các trạng thái ngẫu nhiên đi ra từ Start.
     current_state_set = _random_state_set(game, beam_width, rng)
     node_generated += len(current_state_set)
     seen = {state_key(state) for state in current_state_set}
@@ -174,12 +160,12 @@ def beam_search(game, beam_width=50, seed=7, max_iterations=500):
         _print_solution("Local Beam Search", start_time, node_generated, best_state.pathSolution)
         return best_state.pathSolution
 
-    # 2. Lặp có giới hạn để tránh kẹt vòng lặp vô hạn
+    # Lặp có giới hạn để tránh kẹt vòng lặp vô hạn.
     for iteration in range(1, max_iterations + 1):
         current_best_state = min(current_state_set, key=heuristic)
         current_best_heuristic = heuristic(current_best_state)
 
-        # 2.1 SINH TRẠNG THÁI LÂN CẬN
+        # Mở rộng tất cả trạng thái trong chùm hiện tại.
         neighbor_states = []
         for state in current_state_set:
             for step in validMove(state):
@@ -194,7 +180,7 @@ def beam_search(game, beam_width=50, seed=7, max_iterations=500):
                     continue
                 neighbor_states.append(neighbor)
 
-        # 2.2 KIỂM TRA BẾ TẮC
+        # Nếu không còn hàng xóm mới, chùm hiện tại đã hết hướng đi.
         if not neighbor_states:
             best_state = min(current_state_set, key=heuristic)
             if best_state.isComplete():
@@ -212,13 +198,13 @@ def beam_search(game, beam_width=50, seed=7, max_iterations=500):
                 },
             )
 
-        # 2.3 KIỂM TRA ĐÍCH
+        # Goal có thể xuất hiện ngay trong lớp hàng xóm vừa sinh.
         for neighbor in neighbor_states:
             if neighbor.isComplete():
                 _print_solution("Local Beam Search", start_time, node_generated, neighbor.pathSolution)
                 return neighbor.pathSolution
 
-        # 2.4 LỰA CHỌN CHÙM
+        # Giữ lại beam_width trạng thái có heuristic tốt nhất để đi tiếp.
         neighbor_states.sort(key=heuristic)
         next_state_set = neighbor_states[:beam_width]
         next_best_state = next_state_set[0]
@@ -269,22 +255,15 @@ def simulated_annealing_search(
 ):
     """Simulated Annealing.
 
-    Pseudocode:
-        SimulatedAnnealing(start, goal):
-            current_state = start
-            best_state = start
-            T = T0
-            for i = 1 to max_iterations while T > Tmin:
-                if current_state == goal: return current_state
-                next_state = RandomNeighbor(current_state)
-                if h(next_state) < h(best_state): best_state = next_state
-                Δ = h(next_state) - h(current_state)
-                if Δ < 0: current_state = next_state
-                else:
-                    p = exp(-Δ/T)
-                    if Random(0,1) < p: current_state = next_state
-                T = α * T
-            return best_state
+    Ý tưởng:
+    - Thuật toán mô phỏng quá trình làm nguội: lúc nhiệt độ cao, nó có thể
+      chấp nhận cả bước đi xấu để thoát khỏi cực trị cục bộ.
+    - Khi nhiệt độ giảm dần, xác suất nhận bước xấu nhỏ lại, thuật toán trở
+      nên "tham lam" hơn và tập trung quanh vùng trạng thái tốt.
+    - best_state luôn lưu trạng thái tốt nhất từng gặp để nếu quá trình thử
+      nghiệm kết thúc mà chưa tới goal, ta vẫn biết thuật toán đã tiến xa tới đâu.
+    - Trong Sokoban, cơ chế nhận bước xấu có ích khi cần tạm thời đi xa box
+      hoặc tăng heuristic trước khi có thể đẩy box vào hướng đúng.
     """
     start_time = time.time()
     rng = random.Random(seed)
@@ -303,18 +282,18 @@ def simulated_annealing_search(
     stop_reason = "Simulated Annealing đã nguội về Tmin nhưng chưa đạt Goal."
     iteration = 0
 
-    # for i = 1 to max_iterations while T > Tmin
+    # Vòng lặp dừng khi hết lượt thử hoặc nhiệt độ đã giảm quá thấp.
     for iteration in range(1, max_iterations + 1):
         if T <= min_temperature:
             stop_reason = "Simulated Annealing đã nguội về Tmin nhưng chưa đạt Goal."
             break
 
-        # if current_state == goal: return current_state
+        # Gặp goal ở bất kỳ thời điểm nào thì trả lời giải ngay.
         if current.isComplete():
             _print_solution("Simulated Annealing", start_time, node_generated, current.pathSolution)
             return current.pathSolution
 
-        # next_state = RandomNeighbor(current_state)
+        # Lấy một hàng xóm ngẫu nhiên để tránh đi theo một hướng cố định.
         next_state = _random_neighbor(current, rng)
         if next_state is None:
             stop_reason = "Không còn trạng thái lân cận hợp lệ."
@@ -326,18 +305,16 @@ def simulated_annealing_search(
             _print_solution("Simulated Annealing", start_time, node_generated, next_state.pathSolution)
             return next_state.pathSolution
 
-        # Δ = h(next_state) - h(current_state)
+        # delta < 0 nghĩa là hàng xóm tốt hơn; delta > 0 là bước đi xấu hơn.
         delta = next_heuristic - current_heuristic
 
-        # if Δ < 0: current_state = next_state
         accepted = False
         if delta < 0:
             current = next_state
             current_heuristic = next_heuristic
             accepted = True
         else:
-            # p = exp(-Δ/T)
-            # if Random(0,1) < p: current_state = next_state
+            # Nhiệt độ càng cao thì xác suất chấp nhận bước xấu càng lớn.
             p = math.exp(-delta / T)
             if rng.random() < p:
                 current = next_state
@@ -349,12 +326,12 @@ def simulated_annealing_search(
             best_state = copy.deepcopy(current)
             best_heuristic = current_heuristic
 
-        # T = α * T
+        # Làm nguội: càng về sau thuật toán càng ít chấp nhận bước xấu.
         T *= cooling_rate
     else:
         stop_reason = f"Đạt giới hạn {max_iterations} vòng lặp nhưng chưa đạt Goal."
 
-    # return best_state
+    # Hết nhiệt hoặc hết vòng lặp: chỉ thành công nếu best_state thật sự là goal.
     if best_state.isComplete():
         _print_solution("Simulated Annealing", start_time, node_generated, best_state.pathSolution)
         return best_state.pathSolution
