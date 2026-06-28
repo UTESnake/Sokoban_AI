@@ -707,7 +707,7 @@ Có thể mở rộng project theo các hướng sau:
 9. Thêm nhiều outcome thật cho AND-OR để thể hiện rõ môi trường nondeterministic.
 10. Tối ưu IDA* hoặc chạy thuật toán trên thread riêng để GUI không bị đứng khi thuật toán lâu.
 
----
+--- 
 
 ## 18. Kết luận
 
