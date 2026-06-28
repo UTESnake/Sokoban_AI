@@ -250,7 +250,7 @@ Sokoban_AI-main/
 
 ---
 
-## 5. Giao diện được xây dựng bằng thư viện gì?
+## 5. Thư viện được dùng để xây dựng giao diện
 
 Giao diện của dự án là **desktop GUI**, không phải web app.
 
@@ -373,51 +373,15 @@ Lưu ý: Trong code giao diện, key nội bộ của nhóm đối kháng vẫn 
 
 ---
 
-## 8. Heuristic dùng trong dự án
+## 8. Cách chạy và sử dụng giao diện
 
-Hàm heuristic chính nằm trong `algorithm/common.py`.
-
-### 8.1. Box-to-dock distance
-
-Hàm `box_toDock(state)` ước lượng tổng khoảng cách Manhattan từ mỗi thùng tới dock gần nhất.
-
-Ý nghĩa:
-
-```text
-h_box = tổng khoảng cách Manhattan giữa các box và dock gần nhất
-```
-
-### 8.2. Worker-to-box distance
-
-Hàm `worker_toBox(state)` ước lượng khoảng cách từ người chơi tới thùng gần nhất.
-
-Ý nghĩa:
-
-```text
-h_worker = khoảng cách Manhattan từ worker tới box gần nhất
-```
-
-### 8.3. Heuristic tổng
-
-Hàm `heuristic(state)` kết hợp hai thành phần:
-
-```text
-h(n) = box_toDock(n) + worker_toBox(n)
-```
-
-Heuristic này giúp A*, Greedy, IDA*, Beam Search và các thuật toán cục bộ chọn trạng thái có vẻ gần lời giải hơn.
-
----
-
-## 9. Cách chạy và sử dụng giao diện
-
-### 9.1. Chạy app
+### 8.1. Chạy app
 
 ```bash
 python main.py
 ```
 
-### 9.2. Chọn level
+### 8.2. Chọn level
 
 Ở panel trái, chọn một level trong combobox:
 
@@ -429,11 +393,11 @@ Level 4 - Complex
 Level 5 - Adversarial
 ```
 
-### 9.3. Chọn thuật toán
+### 8.3. Chọn thuật toán
 
 Các thuật toán được chia thành nhóm. Bấm vào nút thuật toán, chương trình sẽ tự load level phù hợp và chạy lời giải.
 
-### 9.4. Chạy lại map
+### 8.4. Chạy lại map
 
 Bấm:
 
@@ -443,7 +407,7 @@ Start
 
 để load lại map hiện tại.
 
-### 9.5. Dừng game
+### 8.5. Dừng game
 
 Bấm:
 
@@ -453,11 +417,11 @@ Stop
 
 để dừng vòng lặp game.
 
-### 9.6. Di chuyển thủ công
+### 8.6. Di chuyển thủ công
 
 Có thể dùng các nút mũi tên hoặc bàn phím để điều khiển người chơi thủ công.
 
-### 9.7. Xem log xử lý
+### 8.7. Xem log xử lý
 
 Panel phải có vùng `PROCESS LOG`. Khi thuật toán chạy, log sẽ hiển thị:
 
@@ -469,108 +433,8 @@ Panel phải có vùng `PROCESS LOG`. Khi thuật toán chạy, log sẽ hiển 
 
 ---
 
-## 10. Animation và xuất file ảnh động
 
-### 10.1. Animation trực tiếp trong app
-
-Sau khi thuật toán tìm được lời giải, `main.py` gọi:
-
-```python
-self._start_solution_animation(path, display_matrix)
-```
-
-Animation được chạy bằng:
-
-- `root.after(...)` của Tkinter để lên lịch từng bước;
-- `Game.move(...)` để cập nhật trạng thái;
-- `pygame` để render lại bản đồ;
-- đường trail màu để biểu diễn đường đi của người chơi.
-
-
-### 10.3. Chèn ảnh giao diện và GIF vào README
-
-Project hiện đã có sẵn thư mục `GIF/` chứa ảnh giao diện và ảnh động minh họa cho từng thuật toán. Vì vậy có thể nhúng trực tiếp vào `README.md` bằng đường dẫn tương đối.
-
-Ví dụ:
-
-```markdown
-![Giao diện](GIF/UI.png)
-![BFS](GIF/BFS.gif)
-![A*](GIF/A_STAR.gif)
-![No Observation](GIF/NO_OBSERVATION.gif)
-```
-
-Ưu điểm của cách này:
-
-- xem trực tiếp giao diện và animation ngay trong trang README;
-- thuận tiện khi nộp GitHub hoặc demo cho giảng viên;
-- không cần mở riêng từng file GIF trong thư mục.
-
-### 10.2. Trạng thái hiện tại của chức năng xuất GIF
-
-Bản code hiện tại **đã có animation replay trong giao diện**, nhưng **chưa có nút xuất GIF/ảnh động tự động trong chương trình**. Vì vậy nếu cần nộp ảnh động, có hai cách thực tế:
-
-### Cách 1: Xuất GIF bằng phần mềm quay màn hình
-
-Khuyến nghị dùng **ScreenToGif** trên Windows.
-
-Quy trình:
-
-1. Chạy app:
-
-   ```bash
-   python main.py
-   ```
-
-2. Chọn level và thuật toán cần demo.
-3. Mở ScreenToGif, chọn vùng khung game ở giữa.
-4. Bấm thuật toán để animation chạy.
-5. Lưu file GIF vào thư mục, ví dụ:
-
-   ```text
-   docs/gifs/bfs.gif
-   docs/gifs/astar.gif
-   docs/gifs/partial_observation.gif
-   ```
-
-6. Nhúng vào README:
-
-   ```markdown
-   ![BFS demo](docs/gifs/bfs.gif)
-   ![A* demo](docs/gifs/astar.gif)
-   ![Partial Observation demo](docs/gifs/partial_observation.gif)
-   ```
-
-### Cách 2: Bổ sung script xuất GIF tự động
-
-Nếu muốn xuất GIF tự động từ path lời giải, có thể bổ sung script riêng dùng `pygame.Surface` để render từng frame và dùng `Pillow` hoặc `imageio` để lưu `.gif`.
-
-Cài thêm thư viện:
-
-```bash
-python -m pip install pillow imageio
-```
-
-Quy ước thư mục đề xuất:
-
-```text
-exports/gifs/
-├── bfs.gif
-├── dfs.gif
-├── ids.gif
-├── astar.gif
-├── greedy.gif
-├── ida_star.gif
-├── no_observation.gif
-├── partial_observation.gif
-└── alpha_beta.gif
-```
-
-Vì bản hiện tại chưa có sẵn script export GIF, khi báo cáo nên ghi chính xác là: **chương trình hỗ trợ animation trực tiếp; file GIF demo được xuất bằng công cụ quay màn hình hoặc script bổ sung.**
-
----
-
-## 11. Kết quả kiểm tra tham khảo
+## 9. Kết quả kiểm tra 
 
 Các kết quả dưới đây được kiểm tra trực tiếp trên các level mặc định trong project. Thời gian chạy có thể thay đổi tùy máy.
 
@@ -587,7 +451,7 @@ Các kết quả dưới đây được kiểm tra trực tiếp trên các leve
 | Local | Annealing | Level 3 | Thất bại | 76 | Hết nhiệt độ trước khi đạt goal |
 | Complex | AND-OR | Level 4 | Thành công | 71 | Sinh policy/branch replay |
 | Complex | No Observation | Level 4 | Thành công | 71 | Sinh conformant plan cho belief-state |
-| Complex | Partial Observation | Level 4 | Thành công | 79 | Có exploration và belief collapse khi dùng các ô `?` trong GUI |
+| Complex | Partial Observation | Level 4 | Thành công | 78 | Có exploration và belief collapse khi dùng các ô `?` trong GUI |
 | CSP | Backtracking | Level 4 | Thành công | 77 | Dùng assignment box-dock rồi search định hướng |
 | CSP | Min-Conflict | Level 4 | Thành công | 71 | Tìm assignment ít conflict rồi search |
 | CSP | AC-3 | Level 4 | Thành công | 71 | Lan truyền ràng buộc trước khi search |
@@ -597,9 +461,9 @@ Các kết quả dưới đây được kiểm tra trực tiếp trên các leve
 
 ---
 
-## 12. So sánh thuật toán trong cùng nhóm
+## 10. So sánh thuật toán trong cùng nhóm
 
-### 12.1. Nhóm tìm kiếm không thông tin
+### 11.1. Nhóm tìm kiếm không thông tin
 
 | Thuật toán | Ưu điểm | Hạn chế | Đánh giá trên project |
 |---|---|---|---|
@@ -609,7 +473,7 @@ Các kết quả dưới đây được kiểm tra trực tiếp trên các leve
 
 Kết luận nhóm: **BFS và IDS tốt hơn DFS về độ dài lời giải**, còn DFS có lợi thế đơn giản và ít bộ nhớ hơn nhưng không nên dùng khi cần lời giải tối ưu.
 
-### 12.2. Nhóm tìm kiếm có thông tin
+### 10.2. Nhóm tìm kiếm có thông tin
 
 | Thuật toán | Ưu điểm | Hạn chế | Đánh giá trên project |
 |---|---|---|---|
@@ -619,7 +483,7 @@ Kết luận nhóm: **BFS và IDS tốt hơn DFS về độ dài lời giải**,
 
 Kết luận nhóm: **A*** cân bằng nhất; **Greedy** phù hợp demo heuristic nhanh nhưng không tối ưu; **IDA*** phù hợp khi muốn nói về tiết kiệm bộ nhớ nhưng cần chấp nhận thời gian lớn hơn.
 
-### 12.3. Nhóm tìm kiếm cục bộ
+### 10.3. Nhóm tìm kiếm cục bộ
 
 | Thuật toán | Ưu điểm | Hạn chế | Đánh giá trên project |
 |---|---|---|---|
@@ -629,7 +493,7 @@ Kết luận nhóm: **A*** cân bằng nhất; **Greedy** phù hợp demo heuris
 
 Kết luận nhóm: Local search trong Sokoban dễ thất bại vì Sokoban có nhiều deadlock, ngõ cụt và trạng thái phải đi xa khỏi goal tạm thời. Nhóm này phù hợp để minh họa **local optimum, plateau và hạn chế của heuristic cục bộ**, không nên xem là solver chính.
 
-### 12.4. Nhóm môi trường phức tạp và CSP
+### 10.4. Nhóm môi trường phức tạp và CSP
 
 | Thuật toán | Ý nghĩa | Đánh giá trên project |
 |---|---|---|
@@ -642,7 +506,7 @@ Kết luận nhóm: Local search trong Sokoban dễ thất bại vì Sokoban có
 
 Kết luận nhóm: Nhóm Complex/CSP không chỉ tìm đường ngắn mà còn minh họa cách agent xử lý **belief-state, quan sát hạn chế, chính sách điều kiện và ràng buộc**.
 
-### 12.5. Nhóm tìm kiếm đối kháng
+### 10.5. Nhóm tìm kiếm đối kháng
 
 | Thuật toán | Ý nghĩa | Đánh giá trên project |
 |---|---|---|
@@ -654,7 +518,7 @@ Kết luận nhóm: **Alpha-Beta không nhằm đổi lời giải so với Mini
 
 ---
 
-## 13. So sánh khác nhóm thuật toán
+## 11. So sánh khác nhóm thuật toán
 
 | Tiêu chí | Uninformed | Informed | Local Search | Complex/CSP | Adversarial |
 |---|---|---|---|---|---|
@@ -675,47 +539,7 @@ Nhìn tổng thể:
 
 ---
 
-## 14. Gợi ý kịch bản demo
-
-### Demo 1: Tìm kiếm không thông tin
-
-1. Chọn `Level 1 - Uninformed`.
-2. Chạy BFS, DFS, IDS.
-3. Quan sát số bước trong ô Solution và biểu đồ so sánh.
-4. Kết luận: BFS/IDS cho lời giải ngắn hơn DFS; IDS chậm hơn vì lặp lại nhiều lần.
-
-### Demo 2: Tìm kiếm có thông tin
-
-1. Chọn `Level 2 - Informed`.
-2. Chạy A*, Greedy, IDA*.
-3. So sánh số bước và thời gian.
-4. Kết luận: Greedy nhanh nhưng không tối ưu; A* cân bằng tốt; IDA* tiết kiệm bộ nhớ về mặt lý thuyết nhưng chậm hơn trong demo.
-
-### Demo 3: Tìm kiếm cục bộ
-
-1. Chọn `Level 3 - Local`.
-2. Chạy Hill Climbing, Beam, Annealing.
-3. Quan sát popup thất bại và lý do dừng.
-4. Kết luận: local search dễ kẹt trong Sokoban vì heuristic cục bộ không đủ để tránh deadlock.
-
-### Demo 4: No Observation và Partial Observation
-
-1. Chọn `Level 4 - Complex`.
-2. Chạy No Observation.
-3. Chạy Partial Observation.
-4. Giải thích ký hiệu `?` là vùng chưa biết/quan sát hạn chế.
-5. Kết luận: No Observation cần plan an toàn cho belief-state; Partial Observation có thể quan sát dần và lập kế hoạch lại.
-
-### Demo 5: Đối kháng
-
-1. Chọn `Level 5 - Adversarial`.
-2. Chạy Minimax, Alpha-Beta, Expectimax.
-3. Quan sát đối thủ `E` và số liệu log.
-4. Kết luận: Minimax và Alpha-Beta có thể ra cùng path, nhưng Alpha-Beta giảm nhánh; Expectimax dùng kỳ vọng nên mô hình khác.
-
----
-
-## 15. Kiểm thử đã thực hiện
+## 12. Kiểm thử đã thực hiện
 
 Các kiểm tra chính:
 
@@ -729,37 +553,7 @@ Ngoài ra đã chạy thử trực tiếp các thuật toán bằng `Solve(matri
 
 ---
 
-## 16. Một số lưu ý khi bảo vệ bài
-
-1. **Sokoban không giống 8-puzzle**: một số hướng đi có thể làm thùng kẹt vĩnh viễn, vì vậy deadlock rất quan trọng.
-2. **BFS/IDS/A*** phù hợp hơn để tìm lời giải hoàn chỉnh.
-3. **Greedy** chỉ nhìn `h(n)`, nên có thể đi đường dài hơn.
-4. **Local Search** không đảm bảo tìm lời giải; thất bại của Hill/Beam/Annealing là điểm có thể dùng để giải thích local optimum.
-5. **No Observation** và **Partial Observation** là mô phỏng belief-state/quan sát hạn chế, không phải Sokoban fully observable thông thường.
-6. **Backtracking, Min-Conflict, AC-3** trong project đóng vai trò CSP-guided search: phần CSP định hướng gán box-dock, sau đó vẫn cần search để tạo đường đi thật.
-7. **Alpha-Beta** không nhất thiết tạo path khác Minimax; mục tiêu chính là cắt nhánh và giảm tính toán.
-8. **Expectimax** khác Minimax ở giả định đối thủ/chance không luôn chọn nước tối ưu bất lợi nhất.
-
----
-
-## 17. Hướng phát triển
-
-Có thể mở rộng project theo các hướng sau:
-
-1. Thêm Uniform Cost Search đúng nghĩa cho nhóm uninformed.
-2. Thêm Weighted A* hoặc SMA* thật sự.
-3. Thêm nút xuất GIF trực tiếp trong giao diện.
-4. Xuất bảng so sánh ra CSV hoặc Excel.
-5. Ghi lại trace chi tiết Node / Frontier / Reached cho từng thuật toán.
-6. Tạo script tự động sinh GIF cho toàn bộ thuật toán.
-7. Thêm map riêng cho từng thuật toán local để thấy rõ hill climbing, beam và annealing.
-8. Tách key nội bộ nhóm đối kháng từ `UCS`, `BFS2`, `DFS2` thành `Minimax`, `AlphaBeta`, `Expectimax` để code dễ đọc hơn.
-9. Thêm nhiều outcome thật cho AND-OR để thể hiện rõ môi trường nondeterministic.
-10. Tối ưu IDA* hoặc chạy thuật toán trên thread riêng để GUI không bị đứng khi thuật toán lâu.
-
----
-
-## 18. Kết luận
+## 13. Kết luận
 
 Dự án Sokoban AI là một chương trình mô phỏng trực quan cho nhiều nhóm thuật toán tìm kiếm trong Trí tuệ nhân tạo. Điểm mạnh của project là kết hợp được game Sokoban, giao diện desktop, animation lời giải, log xử lý và so sánh thuật toán theo từng nhóm.
 
