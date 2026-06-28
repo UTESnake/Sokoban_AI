@@ -85,7 +85,6 @@ LEVELS = [
     ("Level 3 - Local", "level3_local.txt"),
     ("Level 4 - Complex", "level4_complex.txt"),
     ("Level 5 - Adversarial", "level5_adversarial.txt"),
-    ("Level 6", "level6.txt"),
 ]
 LEVEL_FILES = dict(LEVELS)
 
