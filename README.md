@@ -28,7 +28,7 @@ python -m py_compile main.py assets.py game.py solver.py algorithm\*.py
 
 ### 0.3. Ảnh giao diện chính
 
-Dưới đây là ảnh giao diện tổng quan của chương trình:
+Dưới đây là ảnh giao diện tổng quan của chương trình
 
 ![Giao diện Sokoban AI](GIF/UI.png)
 
