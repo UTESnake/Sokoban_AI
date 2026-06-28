@@ -715,7 +715,7 @@ Dự án Sokoban AI là một chương trình mô phỏng trực quan cho nhiề
 
 Về mặt học thuật, project thể hiện được sự khác nhau giữa:
 
-- tìm kiếm không thông tin và có thông tin;  
+- tìm kiếm không thông tin và có thông tin;
 - heuristic search và local search;
 - môi trường fully observable và partially observable;
 - planning thường và planning có belief-state;
