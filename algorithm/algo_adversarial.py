@@ -298,27 +298,6 @@ def _commit_opponent_action(state, action):
     return child
 
 
-def _chance_opponent_successors(state):
-    successors = []
-
-    for action in _chance_opponent_actions(state):
-        child = _opponent_result(state, action)
-        if child is not None:
-            successors.append(child)
-
-    if not successors:
-        successors.append(state)
-
-    successors = _unique_successors(successors)
-    successors.sort(
-        key=lambda child: (
-            heuristic(child)
-            + EXPECTIMAX_RISK_WEIGHT * _opponent_threat_score(child)
-        )
-    )
-    return successors[:MAX_EXPECTIMAX_OUTCOME_BRANCH]
-
-
 def _opponent_chance_outcomes(state, action):
     """Các outcome ngẫu nhiên của một action E đã được MIN chọn.
 
@@ -390,36 +369,6 @@ def _risk_weight_for_mode(mode):
 # ============================================================
 # ACTION EVALUATION
 # ============================================================
-
-def _evaluate_action_minimax(state, action, depth):
-    result = _adversarial_turn_successors(
-        state, action, mode="minimax", depth=depth)
-    if result is None:
-        return float("-inf")
-
-    value, _successors, _player_child, _generated = result
-    return value
-
-
-def _evaluate_action_alpha_beta(state, action, depth, alpha_hint):
-    result = _adversarial_turn_successors(
-        state, action, mode="alpha_beta", depth=depth, alpha_hint=alpha_hint)
-    if result is None:
-        return float("-inf")
-
-    value, _successors, _player_child, _generated = result
-    return value
-
-
-def _evaluate_action_expectimax(state, action, depth):
-    result = _adversarial_turn_successors(
-        state, action, mode="expectimax", depth=depth)
-    if result is None:
-        return float("-inf")
-
-    value, _successors, _player_child, _generated = result
-    return value
-
 
 def _progress_bonus(parent, child):
     delta = heuristic(parent) - heuristic(child)
@@ -691,14 +640,6 @@ def _expectiminimax_value(state, depth, node_type, pending_action=None):
     return _utility(state, risk_weight=EXPECTIMAX_RISK_WEIGHT), None
 
 
-def _max_value_expectimax(state, depth):
-    return _expectiminimax_value(state, depth, node_type="max")
-
-
-def _chance_value_expectimax(state, depth):
-    return _expectiminimax_value(state, depth, node_type="chance")
-
-
 # ============================================================
 # TERMINAL / UTILITY
 # ============================================================
@@ -818,29 +759,6 @@ def _ordered_opponent_actions(state):
 
     actions.sort(key=lambda item: item[0], reverse=True)
     return [action for _score, action in actions[:MAX_OPPONENT_BRANCH]]
-
-
-def _chance_opponent_actions(state):
-    """
-    Chance actions cho Expectimax.
-
-    Không sắp xếp theo hướng gây hại.
-    Không giới hạn top nhánh nguy hiểm.
-    """
-    position = _competitor_position(state.getMatrix())
-
-    if position is None:
-        return []
-
-    actions = ["S"]
-
-    for action, (dy, dx) in MOVE_DELTAS.items():
-        next_position = position[0] + dy, position[1] + dx
-
-        if _opponent_can_move_to(state, next_position):
-            actions.append(action)
-
-    return actions
 
 
 def _player_result(state, action):

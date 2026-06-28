@@ -5,9 +5,6 @@ class Solve:
         self.dockListPosition = self.dockPosition()
         self.heuristic = 0
 
-    def __lt__(self, other):
-        return self.heuristic < other.heuristic
-
     def getMatrix(self):
         return self.matrix
 
@@ -91,8 +88,3 @@ class Solve:
         for i, j in self.dockListPosition:
             if self.getMatrixElement(i, j) not in ["*", "@"]:
                 self.setMatrixElement(i, j, ".")
-
-    def printState(self):
-        for row in self.matrix:
-            print(" ".join(row))
-        print()

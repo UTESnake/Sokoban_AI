@@ -239,10 +239,6 @@ def _safe_child(state, action):
     return child
 
 
-def _is_goal(state):
-    return state is not None and state.isComplete()
-
-
 # ============================================================
 # AND-OR GRAPH SEARCH
 # ============================================================
@@ -1537,31 +1533,6 @@ def _build_box_dock_csp(game):
         "docks": docks,
         "matrix": matrix,
     }
-
-
-def _select_unassigned_variable(assignment, csp):
-    """SELECT-UNASSIGNED-VARIABLE(assignment, csp) — MRV heuristic."""
-    unassigned = [var for var in csp["variables"] if var not in assignment]
-    return min(unassigned, key=lambda var: len(csp["domains"].get(var, [])))
-
-
-def _order_domain_values(var, assignment, csp):
-    """ORDER-DOMAIN-VALUES(var, assignment, csp) — LCV: ưu tiên dock chưa dùng và gần."""
-    values = list(csp["domains"].get(var, []))
-    return sorted(
-        values,
-        key=lambda dock: (
-            dock in assignment.values(),
-            _distance(var, dock),
-        ),
-    )
-
-
-def _consistent(var, value, assignment, csp):
-    """CONSISTENT(var, value, assignment, csp) — value chưa được gán và nằm trong domain."""
-    if value in assignment.values():
-        return False
-    return value in csp["domains"].get(var, [])
 
 
 def _is_csp_solution(csp, assignment):

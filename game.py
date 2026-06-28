@@ -6,14 +6,6 @@ class Game:
         self.matrix = matrix
         self.stack_matrix = stack_matrix
 
-    def load_size(self):
-        x = 0
-        y = len(self.matrix)
-        for row in self.matrix:
-            if len(row) > x:
-                x = len(row)
-        return x * 64, y * 64
-
     _sprite_for_char = {
         '#': "wall",
         '@': "worker",
@@ -111,19 +103,3 @@ class Game:
         for i, j in dock:
             if self.matrix[i][j] not in ["*", "@"]:
                 self.matrix[i][j] = "."
-
-    def is_deadlock(self, box_x, box_y):
-        if (self.matrix[box_x-1][box_y] in ['#', '$'] and self.matrix[box_x][box_y-1] in ['#', '$']) or \
-           (self.matrix[box_x-1][box_y] in ['#', '$'] and self.matrix[box_x][box_y+1] in ['#', '$']) or \
-           (self.matrix[box_x+1][box_y] in ['#', '$'] and self.matrix[box_x][box_y-1] in ['#', '$']) or \
-           (self.matrix[box_x+1][box_y] in ['#', '$'] and self.matrix[box_x][box_y+1] in ['#', '$']):
-            return True
-        return False
-
-    def check_all_boxes_for_deadlock(self):
-        for i, row in enumerate(self.matrix):
-            for j, char in enumerate(row):
-                if char == '$':
-                    if self.is_deadlock(i, j):
-                        return True
-        return False
