@@ -26,6 +26,120 @@ python -m py_compile main.py assets.py game.py solver.py algorithm\*.py
 
 ---
 
+### 0.3. Ảnh giao diện chính
+
+Dưới đây là ảnh giao diện tổng quan của chương trình:
+
+![Giao diện Sokoban AI](GIF/UI.png)
+
+### 0.4. GIF minh họa các thuật toán
+
+Các file GIF demo đã có sẵn trong thư mục `GIF/`. Phần dưới đây trình bày theo đúng dạng **bảng có khung**, mỗi dòng lặp lại tên nhóm thuật toán để dễ nhìn khi kéo trang.
+
+<table border="1" cellspacing="0" cellpadding="8">
+  <thead>
+    <tr>
+      <th>Nhóm thuật toán</th>
+      <th>Thuật toán</th>
+      <th>Demo</th>
+    </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td><b>Uninformed Search</b></td>
+    <td><b>BFS</b></td>
+    <td align="center"><img src="GIF/BFS.gif" alt="BFS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Uninformed Search</b></td>
+    <td><b>DFS</b></td>
+    <td align="center"><img src="GIF/DFS.gif" alt="DFS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Uninformed Search</b></td>
+    <td><b>IDS</b></td>
+    <td align="center"><img src="GIF/IDS.gif" alt="IDS demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Informed Search</b></td>
+    <td><b>A*</b></td>
+    <td align="center"><img src="GIF/A_STAR.gif" alt="A* demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Informed Search</b></td>
+    <td><b>Greedy</b></td>
+    <td align="center"><img src="GIF/GREEDY.gif" alt="Greedy demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Informed Search</b></td>
+    <td><b>IDA*</b></td>
+    <td align="center"><img src="GIF/IDA_STAR.gif" alt="IDA* demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Local Search</b></td>
+    <td><b>Simple Hill Climbing</b></td>
+    <td align="center"><img src="GIF/SIMPLE_HILL.gif" alt="Simple Hill Climbing demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Local Search</b></td>
+    <td><b>Local Beam Search</b></td>
+    <td align="center"><img src="GIF/LOCAL_BEAM.gif" alt="Local Beam Search demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Local Search</b></td>
+    <td><b>Simulated Annealing</b></td>
+    <td align="center"><img src="GIF/SIMULATED_ANNEALING.gif" alt="Simulated Annealing demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>AND-OR</b></td>
+    <td align="center"><img src="GIF/AND_OR.gif" alt="AND-OR demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>No Observation</b></td>
+    <td align="center"><img src="GIF/NO_OBSERVATION.gif" alt="No Observation demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>Partial Observation</b></td>
+    <td align="center"><img src="GIF/PARTIALLY_OBSERVATION.gif" alt="Partial Observation demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>Backtracking</b></td>
+    <td align="center"><img src="GIF/BACKTRACKING.gif" alt="Backtracking demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>Min-Conflict</b></td>
+    <td align="center"><img src="GIF/MIN_CONFLICT.gif" alt="Min-Conflict demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Complex / CSP</b></td>
+    <td><b>AC-3</b></td>
+    <td align="center"><img src="GIF/AC_3.gif" alt="AC-3 demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Adversarial Search</b></td>
+    <td><b>Minimax</b></td>
+    <td align="center"><img src="GIF/MINIMAX.gif" alt="Minimax demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Adversarial Search</b></td>
+    <td><b>Alpha-Beta</b></td>
+    <td align="center"><img src="GIF/ALPHA_BETA.gif" alt="Alpha-Beta demo" width="560"></td>
+  </tr>
+  <tr>
+    <td><b>Adversarial Search</b></td>
+    <td><b>Expectimax</b></td>
+    <td align="center"><img src="GIF/EXPECTIMAX.gif" alt="Expectimax demo" width="560"></td>
+  </tr>
+  </tbody>
+</table>
+
+---
+
 ## 1. Thông tin dự án
 
 | Mục | Nội dung |
@@ -371,6 +485,26 @@ Animation được chạy bằng:
 - `Game.move(...)` để cập nhật trạng thái;
 - `pygame` để render lại bản đồ;
 - đường trail màu để biểu diễn đường đi của người chơi.
+
+
+### 10.3. Chèn ảnh giao diện và GIF vào README
+
+Project hiện đã có sẵn thư mục `GIF/` chứa ảnh giao diện và ảnh động minh họa cho từng thuật toán. Vì vậy có thể nhúng trực tiếp vào `README.md` bằng đường dẫn tương đối.
+
+Ví dụ:
+
+```markdown
+![Giao diện](GIF/UI.png)
+![BFS](GIF/BFS.gif)
+![A*](GIF/A_STAR.gif)
+![No Observation](GIF/NO_OBSERVATION.gif)
+```
+
+Ưu điểm của cách này:
+
+- xem trực tiếp giao diện và animation ngay trong trang README;
+- thuận tiện khi nộp GitHub hoặc demo cho giảng viên;
+- không cần mở riêng từng file GIF trong thư mục.
 
 ### 10.2. Trạng thái hiện tại của chức năng xuất GIF
 
